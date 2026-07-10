@@ -1,0 +1,133 @@
+/*
+ * Cipherlane design tokens — "Instrument-grade Schematic".
+ * Border-led, grid-led, monospace-annotated. The accent is signal-teal (earned
+ * from the subject: secure-go / oscilloscope), NOT the default violet-on-black.
+ * Two first-class themes: light "engineering paper", dark "night drafting table".
+ */
+:root {
+  color-scheme: light;
+
+  /* Neutral ink ramp (cool graphite) */
+  --ink-0: #ffffff;
+  --ink-25: #f7f9fb;
+  --ink-50: #eef2f5;
+  --ink-100: #e4eaef;
+  --ink-200: #d4dce3;
+  --ink-300: #b8c3cd;
+  --ink-400: #8c99a5;
+  --ink-500: #64717d;
+  --ink-600: #48545f;
+  --ink-700: #333d47;
+  --ink-800: #212a33;
+  --ink-900: #121a21;
+
+  /* Signal (teal) — the earned accent */
+  --signal-100: #d3f3ec;
+  --signal-300: #6fdccb;
+  --signal-400: #2fc3ac;
+  --signal-500: #12a892;
+  --signal-600: #0b8a78;
+  --signal-700: #0a6e60;
+
+  /* Trace (electric indigo) — used sparingly, never as the identity */
+  --trace-400: #7c86ff;
+  --trace-500: #5b6cff;
+  --trace-600: #4a55e0;
+
+  /* Semantics */
+  --ok-500: #12a892;
+  --warn-500: #d3891c;
+  --warn-600: #b3720f;
+  --danger-500: #e0554e;
+  --danger-600: #c63c37;
+  --info-500: #2f7fd0;
+
+  /* Surface roles — light "engineering paper" */
+  --bg: var(--ink-50);
+  --surface: var(--ink-0);
+  --surface-2: var(--ink-25);
+  --surface-inset: var(--ink-50);
+  --border: #dbe2e8;
+  --border-strong: #c6d0d8;
+  --text: var(--ink-900);
+  --text-muted: var(--ink-500);
+  --text-subtle: var(--ink-400);
+  --primary: var(--signal-600);
+  --primary-ink: #ffffff;
+  --primary-soft: var(--signal-100);
+  --accent: var(--trace-500);
+
+  --grid-line: rgba(18, 26, 33, 0.045);
+  --grid-line-strong: rgba(18, 26, 33, 0.08);
+  --glow: rgba(18, 168, 146, 0.30);
+
+  /* Status tints (bg / ink) */
+  --up-bg: rgba(18,168,146,.12);   --up-ink: #0a6e60;
+  --warn-bg: rgba(211,137,28,.14); --warn-ink: #92590a;
+  --down-bg: rgba(224,85,78,.12);  --down-ink: #b23a34;
+  --idle-bg: rgba(100,113,125,.14); --idle-ink: #4c5863;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --fs-xs: 0.6875rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-2xl: 2.25rem;
+  --fs-3xl: 3rem;
+
+  /* Spacing (4px base) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px;
+
+  /* Radius (sharp / technical) */
+  --r-xs: 2px; --r-sm: 4px; --r-md: 6px; --r-lg: 10px; --r-pill: 999px;
+
+  /* Elevation — border-led, shadows kept subtle */
+  --sh-1: 0 1px 2px rgba(18,26,33,.05);
+  --sh-2: 0 6px 22px -10px rgba(18,26,33,.20);
+  --sh-3: 0 22px 50px -18px rgba(18,26,33,.30);
+
+  /* Motion */
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 340ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --grid-size: 30px;
+  --sidebar-w: 244px;
+  --sidebar-w-collapsed: 68px;
+  --topbar-h: 64px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1117;
+  --surface: #111a23;
+  --surface-2: #16212c;
+  --surface-inset: #0c141b;
+  --border: #21303d;
+  --border-strong: #304453;
+  --text: #e7eef4;
+  --text-muted: #94a4b2;
+  --text-subtle: #66768a;
+  --primary: var(--signal-400);
+  --primary-ink: #03231e;
+  --primary-soft: rgba(47,195,172,.14);
+  --accent: var(--trace-400);
+
+  --grid-line: rgba(120,180,205,0.05);
+  --grid-line-strong: rgba(120,180,205,0.10);
+  --glow: rgba(47,195,172,0.45);
+
+  --up-bg: rgba(47,195,172,.14);   --up-ink: #58ddc7;
+  --warn-bg: rgba(211,137,28,.16); --warn-ink: #e6ac54;
+  --down-bg: rgba(224,85,78,.16);  --down-ink: #f0837c;
+  --idle-bg: rgba(148,164,178,.14); --idle-ink: #aebccb;
+
+  --sh-1: 0 1px 2px rgba(0,0,0,.32);
+  --sh-2: 0 8px 26px -12px rgba(0,0,0,.55);
+  --sh-3: 0 26px 60px -20px rgba(0,0,0,.7);
+}
