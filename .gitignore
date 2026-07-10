@@ -21,6 +21,12 @@ data/
 npm-debug.log*
 yarn-error.log*
 
+# test artifacts
+/web/test-results/
+/web/playwright-report/
+/web/blob-report/
+/web/playwright/.cache/
+
 # process ids
 *.pid
 
