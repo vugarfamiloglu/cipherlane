@@ -55,6 +55,7 @@ type tunnelState struct {
 	baseRx  float64
 	baseTx  float64
 	baseLat float64
+	real    bool // driven by a real gateway agent, not the simulator
 }
 
 type sessionState struct {
@@ -185,8 +186,8 @@ func (e *Engine) Stop() { close(e.stop) }
 func (e *Engine) tick() {
 	e.mu.Lock()
 	for _, t := range e.tunnels {
-		if t.live.Status == "down" {
-			continue
+		if t.live.Status == "down" || t.real {
+			continue // real tunnels are driven by agent reports
 		}
 		t.live.RxMbps = round1(e.walk(t.live.RxMbps, t.baseRx, t.baseRx*0.06+1, 0, t.baseRx*2))
 		t.live.TxMbps = round1(e.walk(t.live.TxMbps, t.baseTx, t.baseTx*0.06+1, 0, t.baseTx*2))
@@ -297,6 +298,32 @@ func (e *Engine) TunnelLive(id string) (models.TunnelLive, bool) {
 		return t.live, true
 	}
 	return models.TunnelLive{}, false
+}
+
+// AddTunnel registers a freshly-created tunnel so it starts emitting telemetry.
+func (e *Engine) AddTunnel(id, status string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, ok := e.tunnels[id]; !ok {
+		e.tunnels[id] = e.newTunnel(status)
+	}
+}
+
+// ApplyReport overrides a tunnel's live metrics with real agent-reported values
+// and marks it real so the simulator stops touching it.
+func (e *Engine) ApplyReport(id string, rxMbps, txMbps float64, handshakeAgeS int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	t, ok := e.tunnels[id]
+	if !ok {
+		t = e.newTunnel("up")
+		e.tunnels[id] = t
+	}
+	t.real = true
+	t.live.Status = "up"
+	t.live.RxMbps = round1(rxMbps)
+	t.live.TxMbps = round1(txMbps)
+	t.live.HandshakeAgeS = handshakeAgeS
 }
 
 // SessionLive returns live rx/tx for one session.

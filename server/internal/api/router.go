@@ -15,6 +15,7 @@ import (
 	"cipherlane/internal/config"
 	"cipherlane/internal/db"
 	"cipherlane/internal/sim"
+	"cipherlane/internal/vault"
 	"cipherlane/internal/ws"
 )
 
@@ -26,6 +27,7 @@ type Server struct {
 	Hub      *ws.Hub
 	Secret   string // session HMAC secret (base64)
 	Passcode string // bcrypt passcode hash
+	Vault    *vault.Vault
 }
 
 // Handler builds the root http.Handler.
@@ -41,6 +43,10 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/auth/login", s.login)
 		r.Post("/auth/logout", s.logout)
 		r.Get("/auth/me", s.me)
+
+		// Gateway agents authenticate with a bearer token, not a session cookie.
+		r.Get("/agents/config", s.agentConfig)
+		r.Post("/agents/report", s.agentReport)
 
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireAuth)
@@ -61,6 +67,16 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/keys", s.listKeys)
 			r.Get("/alerts", s.listAlerts)
 			r.Get("/audit", s.listAudit)
+
+			r.Post("/sites", s.createSite)
+			r.Post("/tunnels", s.createTunnel)
+			r.Post("/policies", s.createPolicy)
+
+			r.Get("/auth/mfa", s.mfaStatus)
+			r.Post("/auth/mfa/setup", s.mfaSetup)
+			r.Post("/auth/mfa/activate", s.mfaActivate)
+			r.Post("/auth/mfa/disable", s.mfaDisable)
+			r.Get("/agent/token", s.agentTokenInfo)
 		})
 	})
 

@@ -34,8 +34,9 @@ func main() {
 		log.Fatalf("seed: %v", err)
 	}
 
-	// Ensure the vault master key exists (used to seal secrets at rest).
-	if _, err := vault.Open(cfg.VaultKeyPath); err != nil {
+	// Open the vault (seals secrets at rest — MFA secrets, keys).
+	vlt, err := vault.Open(cfg.VaultKeyPath)
+	if err != nil {
 		log.Fatalf("vault: %v", err)
 	}
 
@@ -47,12 +48,13 @@ func main() {
 		}
 		return auth.HashPasscode(pc)
 	})
+	_ = ensureSetting(store, "agent_token", func() (string, error) { return auth.NewSecret() })
 
 	hub := ws.NewHub(cfg.Dev)
 	engine := sim.New(store.DB, hub)
 	go engine.Run()
 
-	srv := &api.Server{Cfg: cfg, DB: store, Sim: engine, Hub: hub, Secret: secret, Passcode: passHash}
+	srv := &api.Server{Cfg: cfg, DB: store, Sim: engine, Hub: hub, Secret: secret, Passcode: passHash, Vault: vlt}
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Handler(),
