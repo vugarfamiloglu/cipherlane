@@ -1,0 +1,29 @@
+# runtime data & secrets (never commit)
+/server/data/
+data/
+.env
+.env.local
+*.db
+*.db-wal
+*.db-shm
+.vault-key
+.session-secret
+
+# go build output
+/server/cipherlane
+/server/cipherlane.exe
+/server/*.exe
+
+# node / vite
+/web/node_modules/
+/web/dist/
+/web/.vite/
+npm-debug.log*
+yarn-error.log*
+
+# editor / os
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
