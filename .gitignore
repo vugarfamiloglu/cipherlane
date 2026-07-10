@@ -21,6 +21,9 @@ data/
 npm-debug.log*
 yarn-error.log*
 
+# process ids
+*.pid
+
 # editor / os
 .DS_Store
 Thumbs.db
