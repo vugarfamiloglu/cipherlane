@@ -4,14 +4,77 @@ import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
 import { useLive } from '../lib/live'
 import { PageHead, Loading, ErrorNote } from '../components/ui/Page'
-import { Button, StatusBadge, KeyVal } from '../components/ui/primitives'
+import { Button, StatusBadge, KeyVal, statusTone } from '../components/ui/primitives'
 import { fmtRate } from '../lib/format'
-import { statusTone } from '../components/ui/primitives'
-import type { Site, Tunnel } from '../lib/types'
+import type { Tunnel } from '../lib/types'
 
-const CX = 480, CY = 292, R = 210, NW = 150, NH = 56
+const W = 960, H = 600, CX = 480, CY = 300
+const NW = 150, NH = 56, HW = NW / 2, HH = NH / 2, GAP = 4
+
+type Layout = 'radial' | 'ring' | 'grid' | 'layered'
+const LAYOUTS: { key: Layout; label: string }[] = [
+  { key: 'radial', label: 'Radial' },
+  { key: 'ring', label: 'Ring' },
+  { key: 'grid', label: 'Grid' },
+  { key: 'layered', label: 'Layered' },
+]
 
 interface Node { id: string; name: string; code: string; sub: string; kind: string; status: string; x: number; y: number; virtual?: boolean }
+
+// Point where the segment center->target exits a node's (padded) box rim, so
+// edges stop at the box boundary and never draw over a node.
+function rim(cx: number, cy: number, tx: number, ty: number): { x: number; y: number } {
+  const dx = tx - cx, dy = ty - cy
+  if (!dx && !dy) return { x: cx, y: cy }
+  const t = Math.min(dx ? (HW + GAP) / Math.abs(dx) : Infinity, dy ? (HH + GAP) / Math.abs(dy) : Infinity)
+  return { x: cx + dx * t, y: cy + dy * t }
+}
+
+function place(items: Omit<Node, 'x' | 'y'>[], layout: Layout): Node[] {
+  const n = items.length
+  if (!n) return []
+  if (layout === 'ring') {
+    return items.map((it, i) => {
+      const a = (-90 + (i * 360) / n) * (Math.PI / 180)
+      return { ...it, x: CX + 205 * Math.cos(a), y: CY + 205 * Math.sin(a) }
+    })
+  }
+  if (layout === 'grid') {
+    const cols = Math.ceil(Math.sqrt(n))
+    const rows = Math.ceil(n / cols)
+    const mx = 150, my = 130
+    const cw = (W - 2 * mx) / Math.max(1, cols - 1 || 1)
+    const ch = (H - 2 * my) / Math.max(1, rows - 1 || 1)
+    return items.map((it, i) => {
+      const c = i % cols, r = Math.floor(i / cols)
+      return { ...it, x: cols === 1 ? CX : mx + c * cw, y: rows === 1 ? CY : my + r * ch }
+    })
+  }
+  if (layout === 'layered') {
+    const tierOf = (k: string) => (k === 'hq' || k === 'datacenter' ? 0 : k === 'branch' ? 1 : 2)
+    const ys = [140, 315, 480]
+    const tiers: Omit<Node, 'x' | 'y'>[][] = [[], [], []]
+    items.forEach((it) => tiers[tierOf(it.kind)].push(it))
+    const out: Node[] = []
+    tiers.forEach((row, ti) => {
+      const m = row.length
+      row.forEach((it, i) => {
+        const x = m === 1 ? CX : 170 + (i * (W - 340)) / (m - 1)
+        out.push({ ...it, x, y: ys[ti] })
+      })
+    })
+    return out
+  }
+  // radial (hub + spokes)
+  const hub = items.find((s) => s.kind === 'hq') ?? items[0]
+  const ring = items.filter((s) => s.id !== hub.id)
+  const out: Node[] = [{ ...hub, x: CX, y: CY }]
+  ring.forEach((it, i) => {
+    const a = (-90 + (i * 360) / ring.length) * (Math.PI / 180)
+    out.push({ ...it, x: CX + 210 * Math.cos(a), y: CY + 210 * Math.sin(a) })
+  })
+  return out
+}
 
 export function Topology() {
   const sitesR = useResource(() => api.sites(), [])
@@ -21,38 +84,35 @@ export function Topology() {
   const nav = useNavigate()
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<string | null>(null)
+  const [layout, setLayout] = useState<Layout>(() => (localStorage.getItem('cl-topo') as Layout) || 'radial')
 
   const online = telemetry?.global.onlineSessions ?? sessR.data?.filter((s) => s.status === 'connected').length ?? 0
 
-  const nodes = useMemo<Node[]>(() => {
+  const nodes = useMemo(() => {
     const sites = sitesR.data ?? []
     if (!sites.length) return []
-    const hub = sites.find((s) => s.kind === 'hq') ?? sites[0]
-    const ring: Node[] = sites
-      .filter((s) => s.id !== hub.id)
-      .map((s) => ({ id: s.id, name: s.name, code: s.code, sub: s.subnetCidr, kind: s.kind, status: s.status, x: 0, y: 0 }))
-    ring.push({ id: '__remote__', name: 'Remote Workforce', code: 'RA', sub: `${online} online`, kind: 'remote', status: online > 0 ? 'online' : 'idle', x: 0, y: 0, virtual: true })
-    ring.forEach((n, i) => {
-      const a = (-90 + (i * 360) / ring.length) * (Math.PI / 180)
-      n.x = CX + R * Math.cos(a)
-      n.y = CY + R * Math.sin(a)
-    })
-    return [{ id: hub.id, name: hub.name, code: hub.code, sub: hub.subnetCidr, kind: hub.kind, status: hub.status, x: CX, y: CY }, ...ring]
-  }, [sitesR.data, online])
+    const items = sites.map((s) => ({ id: s.id, name: s.name, code: s.code, sub: s.subnetCidr, kind: s.kind, status: s.status }))
+    items.push({ id: '__remote__', name: 'Remote Workforce', code: 'RA', sub: `${online} online`, kind: 'remote', status: online > 0 ? 'online' : 'idle' })
+    return place(items.map((it) => ({ ...it, virtual: it.id === '__remote__' })), layout)
+  }, [sitesR.data, online, layout])
 
-  const posOf = (id: string) => nodes.find((n) => n.id === id)
-  const hubId = nodes[0]?.id
+  const posOf = (id: string) => nodes.find((nd) => nd.id === id)
 
   const edges = useMemo(() => {
     const list: { id: string; name: string; ax: number; ay: number; bx: number; by: number; status: string; live?: number }[] = []
     for (const t of tunsR.data ?? []) {
       const a = posOf(t.aSiteId), b = posOf(t.bSiteId)
       if (!a || !b) continue
+      const s = rim(a.x, a.y, b.x, b.y), e = rim(b.x, b.y, a.x, a.y)
       const live = telemetry?.tunnels[t.id]
-      list.push({ id: t.id, name: t.name, ax: a.x, ay: a.y, bx: b.x, by: b.y, status: live?.status ?? t.status, live: live ? live.rxMbps + live.txMbps : undefined })
+      list.push({ id: t.id, name: t.name, ax: s.x, ay: s.y, bx: e.x, by: e.y, status: live?.status ?? t.status, live: live ? live.rxMbps + live.txMbps : undefined })
     }
-    const hub = posOf(hubId), rem = posOf('__remote__')
-    if (hub && rem) list.push({ id: '__ra__', name: 'Remote access', ax: hub.x, ay: hub.y, bx: rem.x, by: rem.y, status: online > 0 ? 'up' : 'idle' })
+    const hub = nodes.find((nd) => nd.kind === 'hq') ?? nodes[0]
+    const remote = posOf('__remote__')
+    if (hub && remote) {
+      const s = rim(hub.x, hub.y, remote.x, remote.y), e = rim(remote.x, remote.y, hub.x, hub.y)
+      list.push({ id: '__ra__', name: 'Remote access', ax: s.x, ay: s.y, bx: e.x, by: e.y, status: online > 0 ? 'up' : 'idle' })
+    }
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tunsR.data, nodes, telemetry, online])
@@ -60,24 +120,32 @@ export function Topology() {
   if (sitesR.loading && !sitesR.data) return <Loading label="Mapping topology…" />
   if (sitesR.error) return <ErrorNote message={sitesR.error} onRetry={sitesR.reload} />
 
+  const pickLayout = (l: Layout) => { setLayout(l); localStorage.setItem('cl-topo', l) }
   const selSite = (sitesR.data ?? []).find((s) => s.id === selected)
   const selTunnels = (tunsR.data ?? []).filter((t) => t.aSiteId === selected || t.bSiteId === selected)
 
   return (
     <>
-      <PageHead title="Network Topology" desc="Every site, encrypted tunnel, and the remote-access mesh — live." />
+      <PageHead title="Network Topology" desc="Every site, encrypted tunnel, and the remote-access mesh — live.">
+        <div className="seg" role="tablist" aria-label="Topology layout">
+          {LAYOUTS.map((l) => (
+            <button key={l.key} role="tab" aria-selected={layout === l.key}
+              className={`seg-btn mono ${layout === l.key ? 'is-on' : ''}`} onClick={() => pickLayout(l.key)}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </PageHead>
+
       <div className="topo-layout">
         <div className="card topo-canvas grid-bg">
-          <svg viewBox="0 0 960 600" className="topo-svg" role="img" aria-label="Network topology map">
-            {edges.map((e) => {
-              const on = hover === e.id
-              return (
-                <g key={e.id} onMouseEnter={() => setHover(e.id)} onMouseLeave={() => setHover(null)}>
-                  <path d={`M${e.ax} ${e.ay} L${e.bx} ${e.by}`} className="topo-hit" />
-                  <path d={`M${e.ax} ${e.ay} L${e.bx} ${e.by}`} className={`topo-edge topo-${statusTone(e.status)} ${on ? 'is-hover' : ''}`} />
-                </g>
-              )
-            })}
+          <svg viewBox={`0 0 ${W} ${H}`} className="topo-svg" role="img" aria-label="Network topology map">
+            {edges.map((e) => (
+              <g key={e.id} onMouseEnter={() => setHover(e.id)} onMouseLeave={() => setHover(null)}>
+                <path d={`M${e.ax} ${e.ay} L${e.bx} ${e.by}`} className="topo-hit" />
+                <path d={`M${e.ax} ${e.ay} L${e.bx} ${e.by}`} className={`topo-edge topo-${statusTone(e.status)} ${hover === e.id ? 'is-hover' : ''}`} />
+              </g>
+            ))}
             {edges.map((e) => hover === e.id && (
               <g key={e.id + '-lbl'} pointerEvents="none">
                 <rect className="topo-lbl-bg" x={(e.ax + e.bx) / 2 - 58} y={(e.ay + e.by) / 2 - 13} width="116" height="26" rx="13" />
@@ -86,16 +154,16 @@ export function Topology() {
                 </text>
               </g>
             ))}
-            {nodes.map((n) => (
-              <g key={n.id} transform={`translate(${n.x - NW / 2}, ${n.y - NH / 2})`}
-                className={`topo-node ${selected === n.id ? 'is-selected' : ''} ${n.virtual ? 'is-virtual' : ''}`}
-                role="button" tabIndex={0} aria-label={n.name}
-                onClick={() => (n.virtual ? nav('/sessions') : setSelected(n.id))}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); n.virtual ? nav('/sessions') : setSelected(n.id) } }}>
+            {nodes.map((nd) => (
+              <g key={nd.id} transform={`translate(${nd.x - HW}, ${nd.y - HH})`}
+                className={`topo-node ${selected === nd.id ? 'is-selected' : ''} ${nd.virtual ? 'is-virtual' : ''}`}
+                role="button" tabIndex={0} aria-label={nd.name}
+                onClick={() => (nd.virtual ? nav('/sessions') : setSelected(nd.id))}
+                onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); nd.virtual ? nav('/sessions') : setSelected(nd.id) } }}>
                 <rect width={NW} height={NH} rx="10" className="topo-node-box" />
-                <circle cx="16" cy="18" r="4" className={`topo-dot topo-dot-${statusTone(n.status)}`} />
-                <text x="28" y="22" className="topo-node-name">{n.name}</text>
-                <text x="14" y="42" className="topo-node-sub mono">{n.code} · {n.sub}</text>
+                <circle cx="16" cy="18" r="4" className={`topo-dot topo-dot-${statusTone(nd.status)}`} />
+                <text x="28" y="22" className="topo-node-name">{nd.name}</text>
+                <text x="14" y="42" className="topo-node-sub mono">{nd.code} · {nd.sub}</text>
               </g>
             ))}
           </svg>
@@ -125,7 +193,7 @@ export function Topology() {
                 <div className="section-label mono upper" style={{ marginBottom: 'var(--sp-2)' }}>Tunnels</div>
                 {selTunnels.map((t) => <TunnelChip key={t.id} t={t} onClick={() => nav(`/tunnels/${t.id}`)} />)}
               </div>
-              <Button variant="default" className="btn-block" onClick={() => nav(`/sites/${selSite.id}`)} style={{ marginTop: 'var(--sp-4)', width: '100%' }}>
+              <Button variant="default" onClick={() => nav(`/sites/${selSite.id}`)} style={{ marginTop: 'var(--sp-4)', width: '100%' }}>
                 Open site →
               </Button>
             </>
@@ -133,7 +201,7 @@ export function Topology() {
             <div className="topo-empty">
               <div className="section-label mono upper">Inspector</div>
               <p className="u-muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 'var(--sp-2)' }}>
-                Select a node to inspect its subnets and tunnels. Hover a trace to read live throughput.
+                Select a node to inspect its subnets and tunnels. Hover a trace to read live throughput. Switch the layout above.
               </p>
             </div>
           )}
