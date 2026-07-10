@@ -100,6 +100,29 @@ cd ../server && go run .        # serves web/dist + API on :7820
 
 Open **http://localhost:7820**.
 
+### Gateway agent (optional)
+
+Run the agent on a Linux gateway to apply the generated WireGuard config and
+stream real interface counters back to the control plane:
+
+```bash
+cd server
+go build -o cipherlane-agent ./cmd/agent
+./cipherlane-agent -server http://<control-plane>:7820 \
+  -token <agent-token> -gateway gw_hq -iface wg0
+```
+
+Copy the token from **Settings → Gateway agent**. On non-Linux hosts the agent
+runs in `-dry-run` mode and synthesizes counters so the loop can be exercised.
+
+### Testing
+
+```bash
+cd server && go test ./...     # Go unit + integration tests
+cd web && npm test             # Vitest unit tests
+cd web && npm run test:e2e     # Playwright E2E (server must be running)
+```
+
 ### Configuration
 
 | Variable | Default | Purpose |
