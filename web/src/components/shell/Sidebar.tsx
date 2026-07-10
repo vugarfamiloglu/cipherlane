@@ -15,32 +15,26 @@ function BrandMark() {
   )
 }
 
-export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+// The rail always renders labels; the collapsed (icon-only) look is applied
+// purely with CSS so the mobile drawer can reveal full labels regardless.
+export function Sidebar({ collapsed, onToggle, onNavigate }: { collapsed: boolean; onToggle: () => void; onNavigate?: () => void }) {
   return (
-    <aside className={`sidebar ${collapsed ? 'is-collapsed' : ''}`}>
+    <aside className="sidebar">
       <div className="sb-brand">
         <BrandMark />
-        {!collapsed && (
-          <span className="sb-word">
-            Cipher<span className="sb-word-accent">lane</span>
-          </span>
-        )}
+        <span className="sb-word">Cipher<span className="sb-word-accent">lane</span></span>
       </div>
 
       <nav className="sb-nav">
         {NAV.map((group) => (
           <div key={group.label} className="sb-group">
-            {!collapsed && <div className="sb-group-label mono upper">{group.label}</div>}
+            <div className="sb-group-label mono upper">{group.label}</div>
             {group.items.map((it) => (
-              <NavLink
-                key={it.path}
-                to={it.path}
-                end={it.path === '/'}
+              <NavLink key={it.path} to={it.path} end={it.path === '/'} onClick={onNavigate}
                 className={({ isActive }) => `sb-link ${isActive ? 'is-active' : ''}`}
-                title={collapsed ? it.label : undefined}
-              >
+                title={collapsed ? it.label : undefined}>
                 <span className="sb-ic"><Icon name={it.icon} size={18} /></span>
-                {!collapsed && <span className="sb-label">{it.label}</span>}
+                <span className="sb-label">{it.label}</span>
               </NavLink>
             ))}
           </div>
@@ -50,9 +44,9 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
       <div className="sb-foot">
         <button className="sb-collapse" onClick={onToggle} title={collapsed ? 'Expand' : 'Collapse'}>
           <Icon name="menu" size={18} />
-          {!collapsed && <span className="mono upper">Collapse</span>}
+          <span className="mono upper">Collapse</span>
         </button>
-        {!collapsed && <div className="sb-tag mono">encrypted lanes · v0.1</div>}
+        <div className="sb-tag mono">encrypted lanes · v0.2</div>
       </div>
     </aside>
   )

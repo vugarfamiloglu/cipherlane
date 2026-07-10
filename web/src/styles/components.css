@@ -64,6 +64,11 @@
   width: 3px; border-radius: 2px; background: var(--primary);
 }
 .is-collapsed .sb-link { justify-content: center; padding: 9px; }
+.app-shell.is-collapsed .sb-word,
+.app-shell.is-collapsed .sb-group-label,
+.app-shell.is-collapsed .sb-label,
+.app-shell.is-collapsed .sb-tag,
+.app-shell.is-collapsed .sb-collapse span { display: none; }
 
 .sb-foot { padding: var(--sp-3); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }
 .sb-collapse {
@@ -114,6 +119,9 @@
   color: var(--text-muted); transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .tb-icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.tb-menu { display: none; place-items: center; width: 38px; height: 38px; margin-right: var(--sp-1); border-radius: var(--r-md); color: var(--text-muted); }
+.tb-menu:hover { background: var(--surface-2); color: var(--text); }
+.drawer-overlay { display: none; }
 
 /* ============================================================================
    Cards & surfaces
@@ -202,6 +210,12 @@
 .pw-input:focus { outline: none; border-color: var(--primary); }
 .pw-eye { position: absolute; right: 6px; display: grid; place-items: center; width: 30px; height: 30px; color: var(--text-subtle); border-radius: var(--r-sm); }
 .pw-eye:hover { color: var(--text); }
+.select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 34px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 17px, calc(100% - 13px) 17px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
 
 /* ============================================================================
    Data table — resizeable columns, sticky header
@@ -271,10 +285,25 @@ body.col-resizing { cursor: col-resize; user-select: none; }
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 780px) {
-  .app-shell, .app-shell.is-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
-  .sb-word, .sb-group-label, .sb-label, .sb-tag, .sb-collapse span { display: none; }
-  .sb-link { justify-content: center; padding: 9px; }
+@media (max-width: 880px) {
+  .app-shell, .app-shell.is-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-areas: "topbar" "workbench";
+  }
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w); z-index: 60;
+    transform: translateX(-100%); transition: transform var(--dur) var(--ease);
+  }
+  .app-shell.is-drawer .sidebar { transform: translateX(0); box-shadow: var(--sh-3); }
+  /* the drawer always shows full labels, even if desktop state was collapsed */
+  .app-shell.is-collapsed .sb-word,
+  .app-shell.is-collapsed .sb-group-label,
+  .app-shell.is-collapsed .sb-label,
+  .app-shell.is-collapsed .sb-tag,
+  .app-shell.is-collapsed .sb-collapse span { display: revert; }
+  .app-shell.is-collapsed .sb-link { justify-content: flex-start; padding: 9px var(--sp-3); }
+  .drawer-overlay { display: block; position: fixed; inset: 0; z-index: 55; background: color-mix(in srgb, var(--ink-900) 50%, transparent); backdrop-filter: blur(1px); }
+  .tb-menu { display: grid; }
   .workbench-inner { padding: var(--sp-5) var(--sp-5) var(--sp-12); }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
 }

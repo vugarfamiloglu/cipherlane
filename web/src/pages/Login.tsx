@@ -7,16 +7,24 @@ import { toast } from '../components/ui/Toaster'
 export function Login() {
   const { login } = useAuth()
   const [pw, setPw] = useState('')
+  const [code, setCode] = useState('')
+  const [mfaStep, setMfaStep] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     try {
-      await login(pw)
+      await login(pw, mfaStep ? code : undefined)
       toast.success('Control plane unlocked')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sign-in failed')
+      const msg = err instanceof Error ? err.message : 'Sign-in failed'
+      if (msg === 'mfa_required') {
+        setMfaStep(true)
+        toast.info('Enter your authenticator code')
+      } else {
+        toast.error(msg)
+      }
     } finally {
       setBusy(false)
     }
@@ -44,16 +52,25 @@ export function Login() {
         </svg>
 
         <h1 className="login-title">Control plane access</h1>
-        <p className="login-sub">Enter the operator passcode to open the console.</p>
+        <p className="login-sub">
+          {mfaStep ? 'Enter the 6-digit code from your authenticator app.' : 'Enter the operator passcode to open the console.'}
+        </p>
 
         <form onSubmit={submit} className="stack" style={{ gap: 'var(--sp-4)' }}>
           <label className="field">
             <span className="field-label mono upper">Operator passcode</span>
             <PasswordInput id="passcode" name="passcode" autoComplete="current-password"
-              value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••••" autoFocus />
+              value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••••" autoFocus={!mfaStep} disabled={mfaStep} />
           </label>
-          <Button variant="primary" type="submit" disabled={busy || !pw}>
-            {busy ? 'Verifying…' : 'Sign in'}
+          {mfaStep && (
+            <label className="field">
+              <span className="field-label mono upper">Authenticator code</span>
+              <input className="input mono" value={code} inputMode="numeric" autoComplete="one-time-code" autoFocus
+                placeholder="123456" maxLength={6} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+            </label>
+          )}
+          <Button variant="primary" type="submit" disabled={busy || !pw || (mfaStep && code.length < 6)}>
+            {busy ? 'Verifying…' : mfaStep ? 'Verify code' : 'Sign in'}
           </Button>
         </form>
 

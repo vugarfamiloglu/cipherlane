@@ -9,7 +9,7 @@ import { fmtRateParts } from '../../lib/format'
 
 interface Override { crumb: string; title: string; subtitle?: string }
 
-export function TopBar({ override }: { override: Override | null }) {
+export function TopBar({ override, onMenu }: { override: Override | null; onMenu: () => void }) {
   const loc = useLocation()
   const h = override ?? deriveHeader(loc.pathname)
   const { theme, toggle } = useTheme()
@@ -31,6 +31,9 @@ export function TopBar({ override }: { override: Override | null }) {
 
   return (
     <header className="topbar">
+      <button className="tb-menu" onClick={onMenu} aria-label="Open navigation menu">
+        <Icon name="menu" size={20} />
+      </button>
       <div className="tb-left">
         <span className="tb-mark"><Icon name="shield" size={15} /></span>
         <Icon name="chevronRight" size={13} className="tb-chev" />

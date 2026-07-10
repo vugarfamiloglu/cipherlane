@@ -17,6 +17,7 @@ export function usePageHeader(crumb: string | undefined, title: string | undefin
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('cl-sb') === '1')
+  const [drawer, setDrawer] = useState(false)
   const [override, setOverride] = useState<Override | null>(null)
 
   const toggle = () =>
@@ -27,14 +28,15 @@ export function AppShell() {
 
   return (
     <HeaderCtx.Provider value={{ setOverride }}>
-      <div className={`app-shell ${collapsed ? 'is-collapsed' : ''}`}>
-        <Sidebar collapsed={collapsed} onToggle={toggle} />
-        <TopBar override={override} />
+      <div className={`app-shell ${collapsed ? 'is-collapsed' : ''} ${drawer ? 'is-drawer' : ''}`}>
+        <Sidebar collapsed={collapsed} onToggle={toggle} onNavigate={() => setDrawer(false)} />
+        <TopBar override={override} onMenu={() => setDrawer(true)} />
         <main className="workbench grid-bg">
           <div className="workbench-inner">
             <Outlet />
           </div>
         </main>
+        {drawer && <div className="drawer-overlay" onClick={() => setDrawer(false)} />}
       </div>
     </HeaderCtx.Provider>
   )

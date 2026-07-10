@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
 import { PageHead, Loading, ErrorNote } from '../components/ui/Page'
 import { DataTable, type Column } from '../components/ui/DataTable'
 import { Card, Badge, Button } from '../components/ui/primitives'
+import { FormModal } from '../components/ui/FormModal'
 import { Icon } from '../components/ui/Icon'
 import { resourceIcon } from '../lib/kinds'
 import { toast } from '../components/ui/Toaster'
@@ -11,6 +13,8 @@ import type { Resource, Policy } from '../lib/types'
 export function Resources() {
   const res = useResource(() => api.resources(), [])
   const pol = useResource(() => api.policies(), [])
+  const [wizard, setWizard] = useState(false)
+
   if (res.loading && !res.data) return <Loading label="Loading resources…" />
   if (res.error) return <ErrorNote message={res.error} onRetry={res.reload} />
 
@@ -30,7 +34,7 @@ export function Resources() {
   return (
     <>
       <PageHead title="Resources & Policies" desc="Internal assets and the rules that govern who can reach them.">
-        <Button variant="primary" size="sm" icon="plus" onClick={() => toast.info('New policy builder opens here')}>New policy</Button>
+        <Button variant="primary" size="sm" icon="plus" onClick={() => setWizard(true)}>New policy</Button>
       </PageHead>
 
       <Card className="card-pad section-block">
@@ -42,6 +46,25 @@ export function Resources() {
         <div className="card-head"><div className="card-title">Access policies</div><Badge>{pol.data?.length ?? 0}</Badge></div>
         <DataTable columns={polCols} rows={pol.data ?? []} empty="No policies defined." />
       </Card>
+
+      {wizard && (
+        <FormModal
+          title="New access policy"
+          submitLabel="Create policy"
+          onClose={() => setWizard(false)}
+          onSubmit={async (v) => {
+            await api.createPolicy({ name: v.name, group: v.group, resourceId: v.resourceId, action: v.action })
+            toast.success('Policy created')
+            pol.reload()
+          }}
+          fields={[
+            { name: 'name', label: 'Policy name', placeholder: 'e.g. Ops — SSH access', required: true },
+            { name: 'group', label: 'Group', placeholder: 'e.g. NetOps', required: true },
+            { name: 'resourceId', label: 'Resource', type: 'select', options: (res.data ?? []).map((r) => ({ value: r.id, label: `${r.name} (${r.kind})` })), default: res.data?.[0]?.id, required: true },
+            { name: 'action', label: 'Action', type: 'select', options: [{ value: 'allow', label: 'Allow' }, { value: 'deny', label: 'Deny' }] },
+          ]}
+        />
+      )}
     </>
   )
 }

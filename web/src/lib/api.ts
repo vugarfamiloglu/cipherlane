@@ -31,8 +31,8 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
 export const api = {
   me: () => req<{ authenticated: boolean }>('/auth/me'),
-  login: (passcode: string) =>
-    req<{ authenticated: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ passcode }) }),
+  login: (passcode: string, code?: string) =>
+    req<{ authenticated: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ passcode, code }) }),
   logout: () => req<{ authenticated: boolean }>('/auth/logout', { method: 'POST' }),
 
   overview: () => req<Overview>('/overview'),
@@ -51,4 +51,14 @@ export const api = {
   keys: () => req<KeyItem[]>('/keys'),
   alerts: () => req<Alert[]>('/alerts'),
   audit: () => req<AuditEvent[]>('/audit'),
+
+  createSite: (b: Record<string, unknown>) => req<Site>('/sites', { method: 'POST', body: JSON.stringify(b) }),
+  createTunnel: (b: Record<string, unknown>) => req<Tunnel>('/tunnels', { method: 'POST', body: JSON.stringify(b) }),
+  createPolicy: (b: Record<string, unknown>) => req<{ id: string }>('/policies', { method: 'POST', body: JSON.stringify(b) }),
+
+  mfaStatus: () => req<{ enabled: boolean }>('/auth/mfa'),
+  mfaSetup: () => req<{ secret: string; otpauthUri: string }>('/auth/mfa/setup', { method: 'POST' }),
+  mfaActivate: (code: string) => req<{ enabled: boolean }>('/auth/mfa/activate', { method: 'POST', body: JSON.stringify({ code }) }),
+  mfaDisable: (code: string) => req<{ enabled: boolean }>('/auth/mfa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
+  agentToken: () => req<{ token: string }>('/agent/token'),
 }

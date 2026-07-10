@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 interface AuthState {
   authed: boolean
   ready: boolean
-  login: (passcode: string) => Promise<void>
+  login: (passcode: string, code?: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -21,8 +21,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setReady(true))
   }, [])
 
-  const login = useCallback(async (passcode: string) => {
-    const r = await api.login(passcode)
+  const login = useCallback(async (passcode: string, code?: string) => {
+    const r = await api.login(passcode, code)
     setAuthed(r.authenticated)
   }, [])
 
