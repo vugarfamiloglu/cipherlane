@@ -244,6 +244,13 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 .cell-strong { font-weight: 600; }
 .cell-sub { font-size: var(--fs-xs); color: var(--text-muted); }
 
+/* Row action icon buttons (edit / delete / toggle) */
+.row-acts { display: inline-flex; gap: 4px; justify-content: flex-end; }
+.row-act { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm); color: var(--text-muted); border: 1px solid transparent; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.row-act:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.row-act.danger:hover { color: var(--danger-500); border-color: color-mix(in srgb, var(--danger-500) 32%, transparent); }
+.detail-actions { display: flex; gap: var(--sp-2); }
+
 /* ============================================================================
    Skeleton, spinner, empty
    ========================================================================== */

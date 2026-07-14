@@ -37,6 +37,9 @@ const paths = {
   key: (<><circle cx="8" cy="8" r="4" /><path d="M11 11l8 8M16 16l2-2M18.5 18.5 20 17" /></>),
   eye: (<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>),
   eyeOff: (<><path d="M4 4l16 16" /><path d="M9.6 5.4A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a17.3 17.3 0 0 1-3.3 3.9M6.2 6.3A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 3.4-.6" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></>),
+  edit: (<><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path d="M13.5 6.5l3 3" /></>),
+  trash: (<><path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /><path d="M10 11v6M14 11v6" /></>),
+  power: (<><path d="M12 4v8" /><path d="M7.5 7a7 7 0 1 0 9 0" /></>),
 }
 
 export type IconName = keyof typeof paths

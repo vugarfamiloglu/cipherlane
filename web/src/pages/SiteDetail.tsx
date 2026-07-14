@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
 import { usePageHeader } from '../components/shell/AppShell'
 import { Loading, ErrorNote, StatTile } from '../components/ui/Page'
-import { Card, Badge, StatusBadge, statusTone } from '../components/ui/primitives'
+import { Card, Button, Badge, StatusBadge, statusTone } from '../components/ui/primitives'
+import { FormModal } from '../components/ui/FormModal'
 import { Icon } from '../components/ui/Icon'
 import { resourceIcon } from '../lib/kinds'
+import { toast } from '../components/ui/Toaster'
+import { confirmDelete } from '../lib/ui'
 import type { Gateway } from '../lib/types'
 
 export function SiteDetail() {
@@ -13,6 +17,7 @@ export function SiteDetail() {
   const nav = useNavigate()
   const { data, loading, error, reload } = useResource(() => api.site(id!), [id])
   usePageHeader('SITE-TO-SITE', data?.site.name, data?.site.location)
+  const [editing, setEditing] = useState(false)
 
   if (loading && !data) return <Loading />
   if (error || !data) return <ErrorNote message={error ?? 'Site not found'} onRetry={reload} />
@@ -20,9 +25,15 @@ export function SiteDetail() {
   const { site, tunnels, resources } = data
   return (
     <>
-      <button className="back-link" onClick={() => nav('/sites')}>
-        <Icon name="chevronRight" size={14} style={{ transform: 'rotate(180deg)' }} /> Sites
-      </button>
+      <div className="between detail-topbar">
+        <button className="back-link" style={{ marginBottom: 0 }} onClick={() => nav('/sites')}>
+          <Icon name="chevronRight" size={14} style={{ transform: 'rotate(180deg)' }} /> Sites
+        </button>
+        <div className="detail-actions">
+          <Button variant="default" size="sm" icon="edit" onClick={() => setEditing(true)}>Edit</Button>
+          <Button variant="danger" size="sm" icon="trash" onClick={() => confirmDelete(site.name, () => api.deleteSite(site.id), () => nav('/sites'))}>Delete</Button>
+        </div>
+      </div>
 
       <div className="kpi-grid">
         <StatTile index={0} label="State" value={<StatusBadge status={site.status} />} />
@@ -60,6 +71,19 @@ export function SiteDetail() {
           {!resources.length && <div className="u-muted mono" style={{ fontSize: 'var(--fs-xs)' }}>No resources at this site.</div>}
         </Card>
       </div>
+
+      {editing && (
+        <FormModal title={`Edit ${site.name}`} submitLabel="Save changes" onClose={() => setEditing(false)}
+          onSubmit={async (v) => { await api.updateSite(site.id, v); toast.success('Site updated'); reload() }}
+          fields={[
+            { name: 'name', label: 'Site name', required: true, default: site.name },
+            { name: 'code', label: 'Code', default: site.code },
+            { name: 'kind', label: 'Type', type: 'select', default: site.kind, options: ['branch', 'hq', 'datacenter', 'cloud'].map((k) => ({ value: k, label: k })) },
+            { name: 'location', label: 'Location', default: site.location },
+            { name: 'subnetCidr', label: 'Subnet', default: site.subnetCidr },
+            { name: 'status', label: 'Status', type: 'select', default: site.status, options: ['online', 'degraded', 'offline'].map((k) => ({ value: k, label: k })) },
+          ]} />
+      )}
     </>
   )
 }

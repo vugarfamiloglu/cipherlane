@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
@@ -5,10 +6,12 @@ import { useLive } from '../lib/live'
 import { usePageHeader } from '../components/shell/AppShell'
 import { Loading, ErrorNote, StatTile } from '../components/ui/Page'
 import { Card, Button, StatusBadge, Badge, KeyVal } from '../components/ui/primitives'
+import { FormModal } from '../components/ui/FormModal'
 import { Icon } from '../components/ui/Icon'
 import { Sparkline } from '../components/ui/Sparkline'
 import { fmtRate } from '../lib/format'
 import { toast } from '../components/ui/Toaster'
+import { confirmDelete, errMsg } from '../lib/ui'
 import type { Tunnel } from '../lib/types'
 
 export function TunnelDetail() {
@@ -17,18 +20,31 @@ export function TunnelDetail() {
   const { data, loading, error, reload } = useResource(() => api.tunnel(id!), [id])
   const { telemetry } = useLive()
   usePageHeader('SITE-TO-SITE', data?.name, data ? `${data.aSiteName} ⇄ ${data.bSiteName}` : undefined)
+  const [editing, setEditing] = useState(false)
 
   if (loading && !data) return <Loading />
   if (error || !data) return <ErrorNote message={error ?? 'Tunnel not found'} onRetry={reload} />
 
   const l = telemetry?.tunnels[data.id] ?? data.live
   const cfg = buildConfig(data)
+  const disabled = (l?.status ?? data.status) === 'down'
+
+  const toggle = async () => {
+    try { const r = await api.toggleTunnel(data.id); toast.success(`Tunnel ${r.status === 'down' ? 'disabled' : 'enabled'}`); reload() } catch (e) { toast.error(errMsg(e)) }
+  }
 
   return (
     <>
-      <button className="back-link" onClick={() => nav('/tunnels')}>
-        <Icon name="chevronRight" size={14} style={{ transform: 'rotate(180deg)' }} /> Tunnels
-      </button>
+      <div className="between detail-topbar">
+        <button className="back-link" style={{ marginBottom: 0 }} onClick={() => nav('/tunnels')}>
+          <Icon name="chevronRight" size={14} style={{ transform: 'rotate(180deg)' }} /> Tunnels
+        </button>
+        <div className="detail-actions">
+          <Button variant="default" size="sm" icon="power" onClick={toggle}>{disabled ? 'Enable' : 'Disable'}</Button>
+          <Button variant="default" size="sm" icon="edit" onClick={() => setEditing(true)}>Edit</Button>
+          <Button variant="danger" size="sm" icon="trash" onClick={() => confirmDelete(data.name, () => api.deleteTunnel(data.id), () => nav('/tunnels'))}>Delete</Button>
+        </div>
+      </div>
 
       <div className="kpi-grid">
         <StatTile index={0} label="State" value={<StatusBadge status={l?.status ?? data.status} />} />
@@ -77,6 +93,22 @@ export function TunnelDetail() {
         </div>
         <pre className="codeblock mono">{cfg}</pre>
       </Card>
+
+      {editing && (
+        <FormModal title={`Edit ${data.name}`} submitLabel="Save changes" onClose={() => setEditing(false)}
+          onSubmit={async (v) => {
+            await api.updateTunnel(data.id, { name: v.name, protocol: v.protocol, cipher: v.cipher, authMethod: v.authMethod, routing: v.routing, mtu: Number(v.mtu) || 1420, status: data.status })
+            toast.success('Tunnel updated'); reload()
+          }}
+          fields={[
+            { name: 'name', label: 'Tunnel name', required: true, default: data.name },
+            { name: 'protocol', label: 'Protocol', type: 'select', default: data.protocol, options: [{ value: 'wireguard', label: 'WireGuard' }, { value: 'ipsec', label: 'IPsec' }] },
+            { name: 'cipher', label: 'Cipher', default: data.cipher },
+            { name: 'authMethod', label: 'Auth', type: 'select', default: data.authMethod, options: [{ value: 'psk', label: 'Pre-shared key' }, { value: 'certificate', label: 'Certificate' }] },
+            { name: 'routing', label: 'Routing', type: 'select', default: data.routing, options: [{ value: 'static', label: 'Static' }, { value: 'bgp', label: 'BGP' }, { value: 'ospf', label: 'OSPF' }] },
+            { name: 'mtu', label: 'MTU', default: String(data.mtu) },
+          ]} />
+      )}
     </>
   )
 }

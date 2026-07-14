@@ -7,6 +7,7 @@ import { DataTable, type Column } from '../components/ui/DataTable'
 import { Card, Badge, Button, EmptyState } from '../components/ui/primitives'
 import { timeAgo } from '../lib/format'
 import { toast } from '../components/ui/Toaster'
+import { errMsg } from '../lib/ui'
 import type { Alert, AuditEvent } from '../lib/types'
 
 function LiveLog() {
@@ -16,8 +17,7 @@ function LiveLog() {
     if (!telemetry) return
     const g = telemetry.global
     const ts = new Date().toLocaleTimeString('en-GB')
-    const line = `[${ts}] agg ↓${g.rx.toFixed(0)} ↑${g.tx.toFixed(0)} Mbps · ${g.activeTunnels} tunnels · ${g.onlineSessions} sessions`
-    setLines((cur) => [...cur.slice(-40), line])
+    setLines((cur) => [...cur.slice(-40), `[${ts}] agg ↓${g.rx.toFixed(0)} ↑${g.tx.toFixed(0)} Mbps · ${g.activeTunnels} tunnels · ${g.onlineSessions} sessions`])
   }, [telemetry])
   return (
     <Card className="ov-panel">
@@ -32,14 +32,17 @@ function LiveLog() {
   )
 }
 
-function AlertItem({ a }: { a: Alert }) {
+function AlertItem({ a, onResolve }: { a: Alert; onResolve: () => void }) {
   const tone = a.severity === 'critical' ? 'down' : a.severity === 'warning' ? 'warn' : 'idle'
+  const resolve = async () => {
+    try { await api.resolveAlert(a.id); toast.success('Alert resolved'); onResolve() } catch (e) { toast.error(errMsg(e)) }
+  }
   return (
     <div className="feed-row">
       <span className={`dot dot-${tone}`} style={{ marginTop: 6 }} />
       <div className="grow"><div className="feed-title">{a.title}</div><div className="feed-sub">{a.detail}</div></div>
       {a.status === 'open'
-        ? <Button size="sm" variant="ghost" onClick={() => toast.success('Alert resolved')}>Resolve</Button>
+        ? <Button size="sm" variant="ghost" onClick={resolve}>Resolve</Button>
         : <Badge tone="up">resolved</Badge>}
     </div>
   )
@@ -66,7 +69,7 @@ export function Monitoring() {
         <Card className="ov-panel">
           <div className="card-head"><div className="card-title">Alerts</div></div>
           <div className="feed">
-            {(alerts.data ?? []).map((a) => <AlertItem key={a.id} a={a} />)}
+            {(alerts.data ?? []).map((a) => <AlertItem key={a.id} a={a} onResolve={() => { alerts.reload(); audit.reload() }} />)}
             {!alerts.data?.length && <EmptyState icon="check" title="No alerts" hint="All systems nominal." />}
           </div>
         </Card>

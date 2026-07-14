@@ -7,6 +7,7 @@ import { StatusBadge, Button } from '../components/ui/primitives'
 import { fmtRate, duration } from '../lib/format'
 import { confirmModal } from '../components/ui/Modal'
 import { toast } from '../components/ui/Toaster'
+import { errMsg } from '../lib/ui'
 import type { Session } from '../lib/types'
 
 export function Sessions() {
@@ -18,7 +19,8 @@ export function Sessions() {
   const live = (s: Session) => telemetry?.sessions[s.id]
   const disconnect = async (s: Session) => {
     const ok = await confirmModal({ title: 'Disconnect session?', message: `End ${s.userName}’s session from ${s.location}.`, confirmText: 'Disconnect', tone: 'danger' })
-    if (ok) toast.success('Session disconnected')
+    if (!ok) return
+    try { await api.disconnectSession(s.id); toast.success('Session disconnected'); reload() } catch (e) { toast.error(errMsg(e)) }
   }
 
   const cols: Column<Session>[] = [

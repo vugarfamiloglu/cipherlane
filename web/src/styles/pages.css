@@ -169,6 +169,11 @@
 .tunnel-spark { margin-bottom: var(--sp-3); padding: var(--sp-3); background: var(--surface-inset); border: 1px solid var(--border); border-radius: var(--r-md); }
 .tunnel-spark svg { width: 100%; height: 44px; }
 
+/* Detail page toolbar + device enrolment layout */
+.detail-topbar { margin-bottom: var(--sp-5); }
+.enroll-grid { display: flex; gap: var(--sp-4); align-items: flex-start; }
+@media (max-width: 640px) { .enroll-grid { flex-direction: column; } }
+
 /* ============================================================================
    Chart tooltip
    ========================================================================== */
