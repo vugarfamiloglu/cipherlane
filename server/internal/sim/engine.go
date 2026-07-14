@@ -347,6 +347,29 @@ func (e *Engine) ApplyReport(id string, rxMbps, txMbps float64, handshakeAgeS in
 	t.live.HandshakeAgeS = handshakeAgeS
 }
 
+// SetTunnelStatus changes a tunnel's live status (enable/disable).
+func (e *Engine) SetTunnelStatus(id, status string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if t, ok := e.tunnels[id]; ok {
+		t.live.Status = status
+	}
+}
+
+// RemoveTunnel drops a deleted tunnel from telemetry.
+func (e *Engine) RemoveTunnel(id string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.tunnels, id)
+}
+
+// DropSession removes a disconnected session from telemetry.
+func (e *Engine) DropSession(id string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.sessions, id)
+}
+
 // SessionLive returns live rx/tx for one session.
 func (e *Engine) SessionLive(id string) (rx, tx float64, ok bool) {
 	e.mu.RLock()

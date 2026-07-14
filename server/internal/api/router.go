@@ -80,6 +80,43 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/auth/passcode", s.changePasscode)
 			r.Get("/backup", s.backup)
 			r.Post("/reset", s.resetEstate)
+
+			// Site-to-site management
+			r.Put("/sites/{id}", s.updateSite)
+			r.Delete("/sites/{id}", s.deleteSite)
+			r.Put("/tunnels/{id}", s.updateTunnel)
+			r.Delete("/tunnels/{id}", s.deleteTunnel)
+			r.Post("/tunnels/{id}/toggle", s.toggleTunnel)
+			r.Post("/gateways", s.createGateway)
+			r.Put("/gateways/{id}", s.updateGateway)
+			r.Delete("/gateways/{id}", s.deleteGateway)
+			r.Post("/gateways/{id}/rotate", s.rotateGateway)
+			r.Post("/cloud", s.createCloud)
+			r.Delete("/cloud/{id}", s.deleteCloud)
+			r.Get("/cloud/{id}/config", s.cloudConfig)
+
+			// Remote access management
+			r.Post("/users", s.createUser)
+			r.Put("/users/{id}", s.updateUser)
+			r.Delete("/users/{id}", s.deleteUser)
+			r.Post("/users/{id}/suspend", s.suspendUser)
+			r.Post("/users/{id}/devices", s.enrollDevice)
+			r.Delete("/devices/{id}", s.deleteDevice)
+			r.Post("/sessions/{id}/disconnect", s.disconnectSession)
+			r.Post("/resources", s.createResource)
+			r.Put("/resources/{id}", s.updateResource)
+			r.Delete("/resources/{id}", s.deleteResource)
+			r.Put("/policies/{id}", s.updatePolicy)
+			r.Delete("/policies/{id}", s.deletePolicy)
+
+			// Security operations
+			r.Post("/alerts/{id}/resolve", s.resolveAlert)
+			r.Post("/certificates", s.issueCert)
+			r.Post("/certificates/{id}/revoke", s.revokeCert)
+			r.Delete("/certificates/{id}", s.deleteCert)
+			r.Post("/keys", s.generateKey)
+			r.Post("/keys/{id}/reveal", s.revealKey)
+			r.Delete("/keys/{id}", s.deleteKey)
 		})
 	})
 
