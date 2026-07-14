@@ -6,29 +6,31 @@ import { toast } from '../components/ui/Toaster'
 
 export function Login() {
   const { login } = useAuth()
+  const [mode, setMode] = useState<'owner' | 'operator'>('owner')
   const [pw, setPw] = useState('')
   const [code, setCode] = useState('')
   const [mfaStep, setMfaStep] = useState(false)
+  const [email, setEmail] = useState('')
+  const [opPw, setOpPw] = useState('')
   const [busy, setBusy] = useState(false)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
     try {
-      await login(pw, mfaStep ? code : undefined)
+      if (mode === 'operator') await login({ email, password: opPw })
+      else await login({ passcode: pw, code: mfaStep ? code : '' })
       toast.success('Control plane unlocked')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sign-in failed'
-      if (msg === 'mfa_required') {
-        setMfaStep(true)
-        toast.info('Enter your authenticator code')
-      } else {
-        toast.error(msg)
-      }
+      if (msg === 'mfa_required') { setMfaStep(true); toast.info('Enter your authenticator code') }
+      else toast.error(msg)
     } finally {
       setBusy(false)
     }
   }
+
+  const disabled = busy || (mode === 'operator' ? !email || !opPw : !pw || (mfaStep && code.length < 6))
 
   return (
     <div className="login grid-bg">
@@ -51,32 +53,53 @@ export function Login() {
           <text x="294" y="38" className="login-schema-lbl" textAnchor="end">PEER</text>
         </svg>
 
-        <h1 className="login-title">Control plane access</h1>
+        <h1 className="login-title">{mode === 'operator' ? 'Operator sign-in' : 'Control plane access'}</h1>
         <p className="login-sub">
-          {mfaStep ? 'Enter the 6-digit code from your authenticator app.' : 'Enter the operator passcode to open the console.'}
+          {mode === 'operator' ? 'Sign in with your operator email and password.'
+            : mfaStep ? 'Enter the 6-digit code from your authenticator app.'
+              : 'Enter the operator passcode to open the console.'}
         </p>
 
         <form onSubmit={submit} className="stack" style={{ gap: 'var(--sp-4)' }}>
-          <label className="field">
-            <span className="field-label mono upper">Operator passcode</span>
-            <PasswordInput id="passcode" name="passcode" autoComplete="current-password"
-              value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••••" autoFocus={!mfaStep} disabled={mfaStep} />
-          </label>
-          {mfaStep && (
-            <label className="field">
-              <span className="field-label mono upper">Authenticator code</span>
-              <input className="input mono" value={code} inputMode="numeric" autoComplete="one-time-code" autoFocus
-                placeholder="123456" maxLength={6} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-            </label>
+          {mode === 'operator' ? (
+            <>
+              <label className="field">
+                <span className="field-label mono upper">Email</span>
+                <input className="input mono" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="auditor@cipherlane.az" autoFocus autoComplete="username" />
+              </label>
+              <label className="field">
+                <span className="field-label mono upper">Password</span>
+                <PasswordInput value={opPw} onChange={(e) => setOpPw(e.target.value)} placeholder="••••••••••" autoComplete="current-password" />
+              </label>
+            </>
+          ) : (
+            <>
+              <label className="field">
+                <span className="field-label mono upper">Operator passcode</span>
+                <PasswordInput id="passcode" name="passcode" autoComplete="current-password"
+                  value={pw} onChange={(e) => setPw(e.target.value)} placeholder="••••••••••" autoFocus={!mfaStep} disabled={mfaStep} />
+              </label>
+              {mfaStep && (
+                <label className="field">
+                  <span className="field-label mono upper">Authenticator code</span>
+                  <input className="input mono" value={code} inputMode="numeric" autoComplete="one-time-code" autoFocus
+                    placeholder="123456" maxLength={6} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                </label>
+              )}
+            </>
           )}
-          <Button variant="primary" type="submit" disabled={busy || !pw || (mfaStep && code.length < 6)}>
+          <Button variant="primary" type="submit" disabled={disabled}>
             {busy ? 'Verifying…' : mfaStep ? 'Verify code' : 'Sign in'}
           </Button>
         </form>
 
+        <button type="button" className="login-switch" onClick={() => { setMode(mode === 'owner' ? 'operator' : 'owner'); setMfaStep(false) }}>
+          {mode === 'owner' ? 'Sign in as an operator →' : '← Owner passcode sign-in'}
+        </button>
+
         <div className="login-foot mono">
           <span>AES-256 · IPsec · WireGuard</span>
-          <span className="login-hint">default · cipherlane</span>
+          <span className="login-hint">{mode === 'operator' ? 'e.g. auditor@… · cipherlane' : 'default · cipherlane'}</span>
         </div>
       </div>
     </div>

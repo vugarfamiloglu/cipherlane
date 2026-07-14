@@ -1,6 +1,6 @@
 import type {
   Overview, Site, Tunnel, User, Session, Resource, Policy, Device,
-  Gateway, CloudConnector, Certificate, KeyItem, Alert, AuditEvent,
+  Gateway, CloudConnector, Certificate, KeyItem, Alert, AuditEvent, Operator,
 } from './types'
 
 export class ApiError extends Error {
@@ -30,9 +30,9 @@ async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  me: () => req<{ authenticated: boolean }>('/auth/me'),
-  login: (passcode: string, code?: string) =>
-    req<{ authenticated: boolean }>('/auth/login', { method: 'POST', body: JSON.stringify({ passcode, code }) }),
+  me: () => req<{ authenticated: boolean; role?: string; name?: string }>('/auth/me'),
+  login: (creds: Record<string, string>) =>
+    req<{ authenticated: boolean; role?: string; name?: string }>('/auth/login', { method: 'POST', body: JSON.stringify(creds) }),
   logout: () => req<{ authenticated: boolean }>('/auth/logout', { method: 'POST' }),
 
   overview: () => req<Overview>('/overview'),
@@ -99,5 +99,13 @@ export const api = {
   generateKey: (b: Record<string, unknown>) => req<{ id: string; publicMaterial: string }>('/keys', { method: 'POST', body: JSON.stringify(b) }),
   revealKey: (id: string) => req<{ secret: string }>(`/keys/${id}/reveal`, { method: 'POST' }),
   deleteKey: (id: string) => req(`/keys/${id}`, { method: 'DELETE' }),
+
+  operators: () => req<Operator[]>('/operators'),
+  createOperator: (b: Record<string, unknown>) => req<{ id: string }>('/operators', { method: 'POST', body: JSON.stringify(b) }),
+  updateOperator: (id: string, b: Record<string, unknown>) => req(`/operators/${id}`, { method: 'PUT', body: JSON.stringify(b) }),
+  deleteOperator: (id: string) => req(`/operators/${id}`, { method: 'DELETE' }),
+  getWebhook: () => req<{ url: string }>('/webhook'),
+  setWebhook: (url: string) => req<{ url: string }>('/webhook', { method: 'PUT', body: JSON.stringify({ url }) }),
 }
+
 

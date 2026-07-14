@@ -33,6 +33,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: '/vault', label: 'Vault', icon: 'vault' },
       { path: '/monitoring', label: 'Monitoring', icon: 'monitoring' },
+      { path: '/team', label: 'Team', icon: 'shield' },
     ],
   },
   {
@@ -58,6 +59,7 @@ const HEADERS: Record<string, Header> = {
   '/resources': { crumb: 'REMOTE ACCESS', title: 'Resources & Policies', subtitle: 'Access control' },
   '/vault': { crumb: 'SECURITY', title: 'Vault', subtitle: 'Certificates & keys' },
   '/monitoring': { crumb: 'SECURITY', title: 'Monitoring', subtitle: 'Alerts & audit trail' },
+  '/team': { crumb: 'SECURITY', title: 'Team', subtitle: 'Operators & roles' },
   '/analytics': { crumb: 'INSIGHTS', title: 'Analytics', subtitle: 'Traffic & uptime' },
   '/settings': { crumb: 'INSIGHTS', title: 'Settings', subtitle: 'Console configuration' },
 }

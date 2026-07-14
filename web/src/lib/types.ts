@@ -84,6 +84,11 @@ export interface AuditEvent {
   id: string; actor: string; action: string; target: string; ip: string; createdAt: number
 }
 
+export interface Operator {
+  id: string; name: string; email: string; role: string; status: string
+  createdAt: number; updatedAt: number
+}
+
 export interface GlobalLive { rx: number; tx: number; activeTunnels: number; onlineSessions: number }
 export interface SeriesPoint { ts: number; rx: number; tx: number }
 
