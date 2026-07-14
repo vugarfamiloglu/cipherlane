@@ -3,9 +3,11 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"cipherlane/internal/auth"
@@ -196,5 +198,133 @@ func TestResetEstate(t *testing.T) {
 	var n int
 	if err := s.DB.QueryRow("SELECT COUNT(*) FROM sites").Scan(&n); err != nil || n == 0 {
 		t.Fatalf("sites not reseeded after reset (n=%d, err=%v)", n, err)
+	}
+}
+
+func authDo(h http.Handler, cookies []*http.Cookie, method, path string, body any) *httptest.ResponseRecorder {
+	var rdr io.Reader
+	if body != nil {
+		bs, _ := json.Marshal(body)
+		rdr = bytes.NewReader(bs)
+	}
+	req := httptest.NewRequest(method, path, rdr)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	return rr
+}
+
+func dataID(rr *httptest.ResponseRecorder) string {
+	var out struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &out)
+	return out.Data.ID
+}
+
+func TestUserLifecycleAndEnrollment(t *testing.T) {
+	h := newTestServer(t).Handler()
+	cookies := loginCookies(t, h)
+
+	rr := authDo(h, cookies, http.MethodPost, "/api/users", map[string]any{"name": "Test User", "username": "testu"})
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("create user: %d %s", rr.Code, rr.Body)
+	}
+	uid := dataID(rr)
+	if uid == "" {
+		t.Fatal("no user id returned")
+	}
+
+	rr = authDo(h, cookies, http.MethodPost, "/api/users/"+uid+"/devices", map[string]any{"name": "laptop", "platform": "linux"})
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("enroll device: %d %s", rr.Code, rr.Body)
+	}
+	var dev struct {
+		Data struct {
+			Config string `json:"config"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &dev)
+	if !strings.Contains(dev.Data.Config, "[Interface]") || !strings.Contains(dev.Data.Config, "[Peer]") {
+		t.Fatalf("device config is not a WireGuard config: %q", dev.Data.Config)
+	}
+
+	if rr = authDo(h, cookies, http.MethodDelete, "/api/users/"+uid, nil); rr.Code != http.StatusOK {
+		t.Fatalf("delete user: %d %s", rr.Code, rr.Body)
+	}
+}
+
+func TestVaultKeyGenerateAndReveal(t *testing.T) {
+	h := newTestServer(t).Handler()
+	cookies := loginCookies(t, h)
+
+	rr := authDo(h, cookies, http.MethodPost, "/api/keys", map[string]any{"name": "test key", "kind": "wireguard"})
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("generate key: %d %s", rr.Code, rr.Body)
+	}
+	var k struct {
+		Data struct {
+			ID             string `json:"id"`
+			PublicMaterial string `json:"publicMaterial"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &k)
+	if k.Data.PublicMaterial == "" {
+		t.Fatal("generated WireGuard key has no public material")
+	}
+
+	rr = authDo(h, cookies, http.MethodPost, "/api/keys/"+k.Data.ID+"/reveal", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("reveal key: %d %s", rr.Code, rr.Body)
+	}
+	var rev struct {
+		Data struct {
+			Secret string `json:"secret"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &rev)
+	if rev.Data.Secret == "" {
+		t.Fatal("revealed secret is empty")
+	}
+}
+
+func TestToggleTunnel(t *testing.T) {
+	h := newTestServer(t).Handler()
+	cookies := loginCookies(t, h)
+	rr := authDo(h, cookies, http.MethodPost, "/api/tunnels/tnl_hq_gnj/toggle", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("toggle: %d %s", rr.Code, rr.Body)
+	}
+	var out struct {
+		Data struct {
+			Status string `json:"status"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &out)
+	if out.Data.Status != "down" {
+		t.Fatalf("expected status down after toggling an up tunnel, got %q", out.Data.Status)
+	}
+}
+
+func TestIssueCertificate(t *testing.T) {
+	h := newTestServer(t).Handler()
+	cookies := loginCookies(t, h)
+	rr := authDo(h, cookies, http.MethodPost, "/api/certificates", map[string]any{"name": "client-x", "kind": "client", "days": 30})
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("issue cert: %d %s", rr.Code, rr.Body)
+	}
+	var c struct {
+		Data struct {
+			Fingerprint string `json:"fingerprint"`
+			CertPem     string `json:"certPem"`
+		} `json:"data"`
+	}
+	_ = json.Unmarshal(rr.Body.Bytes(), &c)
+	if !strings.Contains(c.Data.CertPem, "BEGIN CERTIFICATE") || c.Data.Fingerprint == "" {
+		t.Fatalf("issued cert invalid: %+v", c.Data)
 	}
 }
