@@ -77,7 +77,8 @@ export function Monitoring() {
       </div>
       <Card className="card-pad section-block">
         <div className="card-head"><div className="card-title">Audit trail</div><Badge>{audit.data?.length ?? 0}</Badge></div>
-        <DataTable columns={cols} rows={audit.data ?? []} empty="No audit events." />
+        <DataTable columns={cols} rows={audit.data ?? []} empty="No audit events."
+          search={(e) => `${e.actor} ${e.action} ${e.target} ${e.ip}`} searchPlaceholder="Search audit log…" />
       </Card>
     </>
   )

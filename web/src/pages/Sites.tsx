@@ -31,7 +31,8 @@ export function Sites() {
       <PageHead title="Sites" desc="Offices, datacenters, and cloud VPCs on the private overlay.">
         <Button variant="primary" size="sm" icon="plus" onClick={() => setWizard(true)}>Add site</Button>
       </PageHead>
-      <DataTable columns={cols} rows={data ?? []} onRowClick={(s) => nav(`/sites/${s.id}`)} empty="No sites yet." />
+      <DataTable columns={cols} rows={data ?? []} onRowClick={(s) => nav(`/sites/${s.id}`)} empty="No sites yet."
+        search={(s) => `${s.name} ${s.code} ${s.location} ${s.subnetCidr} ${s.kind} ${s.status}`} searchPlaceholder="Search sites…" />
 
       {wizard && (
         <FormModal

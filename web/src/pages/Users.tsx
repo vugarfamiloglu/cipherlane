@@ -63,7 +63,8 @@ export function Users() {
       <PageHead title="Users" desc="Remote-access accounts, devices, and their live sessions.">
         <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>Add user</Button>
       </PageHead>
-      <DataTable columns={cols} rows={data ?? []} onRowClick={(u) => nav(`/users/${u.id}`)} empty="No users yet." />
+      <DataTable columns={cols} rows={data ?? []} onRowClick={(u) => nav(`/users/${u.id}`)} empty="No users yet."
+        search={(u) => `${u.name} ${u.email} ${u.username} ${u.role} ${u.group} ${u.status}`} searchPlaceholder="Search users…" />
 
       {creating && (
         <FormModal title="Add user" submitLabel="Create user" onClose={() => setCreating(false)}

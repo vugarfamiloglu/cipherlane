@@ -37,7 +37,8 @@ export function Sessions() {
   return (
     <>
       <PageHead title="Sessions" desc="Live remote-access connections into the corporate network." />
-      <DataTable columns={cols} rows={data ?? []} empty="No active sessions." />
+      <DataTable columns={cols} rows={data ?? []} empty="No active sessions."
+        search={(s) => `${s.userName} ${s.deviceName} ${s.clientIp} ${s.assignedIp} ${s.location} ${s.status}`} searchPlaceholder="Search sessions…" />
     </>
   )
 }

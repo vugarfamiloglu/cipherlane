@@ -62,12 +62,14 @@ export function Resources() {
 
       <Card className="card-pad section-block">
         <div className="card-head"><div className="card-title">Internal resources</div><div className="row gap-2"><Badge>{res.data?.length ?? 0}</Badge><Button size="sm" variant="default" icon="plus" onClick={() => setResCreate(true)}>Add resource</Button></div></div>
-        <DataTable columns={resCols} rows={res.data ?? []} empty="No resources defined." />
+        <DataTable columns={resCols} rows={res.data ?? []} empty="No resources defined."
+          search={(r) => `${r.name} ${r.kind} ${r.host} ${r.siteName}`} searchPlaceholder="Search resources…" />
       </Card>
 
       <Card className="card-pad section-block">
         <div className="card-head"><div className="card-title">Access policies</div><div className="row gap-2"><Badge>{pol.data?.length ?? 0}</Badge><Button size="sm" variant="primary" icon="plus" onClick={() => setPolCreate(true)}>New policy</Button></div></div>
-        <DataTable columns={polCols} rows={pol.data ?? []} empty="No policies defined." />
+        <DataTable columns={polCols} rows={pol.data ?? []} empty="No policies defined."
+          search={(p) => `${p.name} ${p.group} ${p.resourceName} ${p.action}`} searchPlaceholder="Search policies…" />
       </Card>
 
       {resCreate && <FormModal title="Add resource" submitLabel="Create resource" onClose={() => setResCreate(false)} onSubmit={async (v) => { await api.createResource(resourcePayload(v)); toast.success('Resource created'); res.reload() }} fields={resourceFields()} />}

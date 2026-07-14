@@ -54,7 +54,8 @@ export function Gateways() {
       <PageHead title="Gateways" desc="The router and firewall endpoints that terminate tunnels.">
         <Button variant="primary" size="sm" icon="plus" onClick={() => setCreating(true)}>Add gateway</Button>
       </PageHead>
-      <DataTable columns={cols} rows={data ?? []} empty="No gateways registered." />
+      <DataTable columns={cols} rows={data ?? []} empty="No gateways registered."
+        search={(g) => `${g.name} ${g.endpoint} ${g.wanIp} ${g.protocol} ${g.status} ${g.siteName ?? ''}`} searchPlaceholder="Search gateways…" />
 
       {creating && <FormModal title="Add gateway" submitLabel="Create gateway" onClose={() => setCreating(false)} onSubmit={async (v) => { await api.createGateway(v); toast.success('Gateway created'); reload() }} fields={gatewayFields(siteOpts)} />}
       {editing && <FormModal title={`Edit ${editing.name}`} submitLabel="Save changes" onClose={() => setEditing(null)} onSubmit={async (v) => { await api.updateGateway(editing.id, v); toast.success('Gateway updated'); reload() }} fields={gatewayFields(siteOpts, editing)} />}

@@ -57,12 +57,14 @@ export function Vault() {
 
       <Card className="card-pad section-block">
         <div className="card-head"><div className="card-title">Certificates</div><div className="row gap-2"><Badge>{certs.data?.length ?? 0}</Badge><Button size="sm" variant="primary" icon="plus" onClick={() => setIssuing(true)}>Issue certificate</Button></div></div>
-        <DataTable columns={certCols} rows={certs.data ?? []} empty="No certificates." />
+        <DataTable columns={certCols} rows={certs.data ?? []} empty="No certificates."
+          search={(c) => `${c.name} ${c.kind} ${c.subject} ${c.fingerprint} ${c.status}`} searchPlaceholder="Search certificates…" />
       </Card>
 
       <Card className="card-pad section-block">
         <div className="card-head"><div className="card-title">Keys &amp; PSKs</div><div className="row gap-2"><Badge>{keys.data?.length ?? 0}</Badge><Button size="sm" variant="default" icon="plus" onClick={() => setGenKey(true)}>Generate key</Button></div></div>
-        <DataTable columns={keyCols} rows={keys.data ?? []} empty="No keys." />
+        <DataTable columns={keyCols} rows={keys.data ?? []} empty="No keys."
+          search={(k) => `${k.name} ${k.kind} ${k.publicMaterial}`} searchPlaceholder="Search keys…" />
       </Card>
 
       {issuing && <FormModal title="Issue certificate" submitLabel="Issue" onClose={() => setIssuing(false)}

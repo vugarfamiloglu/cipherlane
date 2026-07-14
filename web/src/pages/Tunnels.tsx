@@ -49,7 +49,8 @@ export function Tunnels() {
       <PageHead title="Tunnels" desc="Encrypted site-to-site links across the estate.">
         <Button variant="primary" size="sm" icon="plus" onClick={() => setWizard(true)}>New tunnel</Button>
       </PageHead>
-      <DataTable columns={cols} rows={data ?? []} onRowClick={(t) => nav(`/tunnels/${t.id}`)} empty="No tunnels configured yet." />
+      <DataTable columns={cols} rows={data ?? []} onRowClick={(t) => nav(`/tunnels/${t.id}`)} empty="No tunnels configured yet."
+        search={(t) => `${t.name} ${t.aSiteName} ${t.bSiteName} ${t.protocol} ${t.status}`} searchPlaceholder="Search tunnels…" />
 
       {wizard && (
         <FormModal
