@@ -1,12 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
 import { useLive } from '../lib/live'
 import { PageHead, Loading, ErrorNote } from '../components/ui/Page'
 import { Button, StatusBadge, KeyVal, statusTone } from '../components/ui/primitives'
+import { toast } from '../components/ui/Toaster'
+import { exportSvgToPng } from '../lib/svgExport'
 import { fmtRate } from '../lib/format'
 import type { Tunnel } from '../lib/types'
+
+type Pos = Record<string, { x: number; y: number }>
+const posKey = (l: Layout) => `cl-topo-pos-${l}`
+function loadPos(l: Layout): Pos {
+  try { return JSON.parse(localStorage.getItem(posKey(l)) || '{}') as Pos } catch { return {} }
+}
 
 const W = 960, H = 600, CX = 480, CY = 300
 const NW = 150, NH = 56, HW = NW / 2, HH = NH / 2, GAP = 4
@@ -85,6 +93,9 @@ export function Topology() {
   const [selected, setSelected] = useState<string | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const [layout, setLayout] = useState<Layout>(() => (localStorage.getItem('cl-topo') as Layout) || 'radial')
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [pos, setPos] = useState<Pos>(() => loadPos((localStorage.getItem('cl-topo') as Layout) || 'radial'))
+  const drag = useRef<{ id: string; moved: boolean } | null>(null)
 
   const online = telemetry?.global.onlineSessions ?? sessR.data?.filter((s) => s.status === 'connected').length ?? 0
 
@@ -93,8 +104,9 @@ export function Topology() {
     if (!sites.length) return []
     const items = sites.map((s) => ({ id: s.id, name: s.name, code: s.code, sub: s.subnetCidr, kind: s.kind, status: s.status }))
     items.push({ id: '__remote__', name: 'Remote Workforce', code: 'RA', sub: `${online} online`, kind: 'remote', status: online > 0 ? 'online' : 'idle' })
-    return place(items.map((it) => ({ ...it, virtual: it.id === '__remote__' })), layout)
-  }, [sitesR.data, online, layout])
+    const placed = place(items.map((it) => ({ ...it, virtual: it.id === '__remote__' })), layout)
+    return placed.map((nd) => (pos[nd.id] ? { ...nd, x: pos[nd.id].x, y: pos[nd.id].y } : nd))
+  }, [sitesR.data, online, layout, pos])
 
   const posOf = (id: string) => nodes.find((nd) => nd.id === id)
 
@@ -120,7 +132,45 @@ export function Topology() {
   if (sitesR.loading && !sitesR.data) return <Loading label="Mapping topology…" />
   if (sitesR.error) return <ErrorNote message={sitesR.error} onRetry={sitesR.reload} />
 
-  const pickLayout = (l: Layout) => { setLayout(l); localStorage.setItem('cl-topo', l) }
+  const pickLayout = (l: Layout) => { setLayout(l); localStorage.setItem('cl-topo', l); setPos(loadPos(l)) }
+
+  const toSvg = (clientX: number, clientY: number) => {
+    const svg = svgRef.current
+    const ctm = svg?.getScreenCTM()
+    if (!svg || !ctm) return null
+    const p = new DOMPoint(clientX, clientY).matrixTransform(ctm.inverse())
+    return { x: p.x, y: p.y }
+  }
+  const onNodeDown = (e: React.PointerEvent, id: string) => {
+    e.stopPropagation()
+    ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
+    drag.current = { id, moved: false }
+  }
+  const onNodeMove = (e: React.PointerEvent) => {
+    const d = drag.current
+    if (!d) return
+    const p = toSvg(e.clientX, e.clientY)
+    if (!p) return
+    d.moved = true
+    const x = Math.max(HW + GAP, Math.min(W - HW - GAP, p.x))
+    const y = Math.max(HH + GAP, Math.min(H - HH - GAP, p.y))
+    setPos((cur) => ({ ...cur, [d.id]: { x, y } }))
+  }
+  const onNodeUp = (nd: Node) => {
+    const d = drag.current
+    drag.current = null
+    if (d && d.moved) setPos((cur) => { localStorage.setItem(posKey(layout), JSON.stringify(cur)); return cur })
+    else if (nd.virtual) nav('/sessions')
+    else setSelected(nd.id)
+  }
+  const resetLayout = () => { setPos({}); localStorage.removeItem(posKey(layout)); toast.info('Layout reset to default') }
+  const exportPng = async () => {
+    if (!svgRef.current) return
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#ffffff'
+    try { await exportSvgToPng(svgRef.current, 'cipherlane-topology.png', bg); toast.success('Topology exported as PNG') }
+    catch (e) { toast.error(e instanceof Error ? e.message : 'Export failed') }
+  }
+
   const selSite = (sitesR.data ?? []).find((s) => s.id === selected)
   const selTunnels = (tunsR.data ?? []).filter((t) => t.aSiteId === selected || t.bSiteId === selected)
 
@@ -135,11 +185,13 @@ export function Topology() {
             </button>
           ))}
         </div>
+        <Button size="sm" variant="ghost" icon="refresh" onClick={resetLayout}>Reset</Button>
+        <Button size="sm" variant="default" icon="download" onClick={exportPng}>PNG</Button>
       </PageHead>
 
       <div className="topo-layout">
         <div className="card topo-canvas grid-bg">
-          <svg viewBox={`0 0 ${W} ${H}`} className="topo-svg" role="img" aria-label="Network topology map">
+          <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="topo-svg" role="img" aria-label="Network topology map">
             {edges.map((e) => (
               <g key={e.id} onMouseEnter={() => setHover(e.id)} onMouseLeave={() => setHover(null)}>
                 <path d={`M${e.ax} ${e.ay} L${e.bx} ${e.by}`} className="topo-hit" />
@@ -158,7 +210,9 @@ export function Topology() {
               <g key={nd.id} transform={`translate(${nd.x - HW}, ${nd.y - HH})`}
                 className={`topo-node ${selected === nd.id ? 'is-selected' : ''} ${nd.virtual ? 'is-virtual' : ''}`}
                 role="button" tabIndex={0} aria-label={nd.name}
-                onClick={() => (nd.virtual ? nav('/sessions') : setSelected(nd.id))}
+                onPointerDown={(e) => onNodeDown(e, nd.id)}
+                onPointerMove={onNodeMove}
+                onPointerUp={() => onNodeUp(nd)}
                 onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); nd.virtual ? nav('/sessions') : setSelected(nd.id) } }}>
                 <rect width={NW} height={NH} rx="10" className="topo-node-box" />
                 <circle cx="16" cy="18" r="4" className={`topo-dot topo-dot-${statusTone(nd.status)}`} />
