@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { api } from '../lib/api'
 import { useResource } from '../hooks/useApi'
@@ -14,6 +14,25 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went
 export function Settings() {
   const { theme, set } = useTheme()
   const [passModal, setPassModal] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const restore = async (file: File) => {
+    const ok = await confirmModal({
+      title: 'Restore from backup?',
+      message: `This replaces every site, tunnel, user, and session with the contents of “${file.name}”. Console settings and the secret vault are preserved.`,
+      confirmText: 'Restore', tone: 'danger',
+    })
+    if (!ok) return
+    try {
+      const res = await fetch('/api/restore', { method: 'POST', credentials: 'include', body: file })
+      const body = await res.json().catch(() => null)
+      if (!res.ok || body?.ok === false) throw new Error(body?.error || 'Restore failed')
+      toast.success('Estate restored — reloading…')
+      setTimeout(() => location.reload(), 700)
+    } catch (e) {
+      toast.error(errMsg(e))
+    }
+  }
 
   const backup = async () => {
     try {
@@ -75,9 +94,13 @@ export function Settings() {
             <KeyVal k="Version" v="0.2.0" mono />
           </dl>
           <div className="setting-row"><div><div className="feed-title">Backup</div><div className="feed-sub">Download an encrypted snapshot.</div></div><Button variant="default" size="sm" icon="download" onClick={backup}>Backup</Button></div>
+          <div className="setting-row"><div><div className="feed-title">Restore</div><div className="feed-sub">Import a snapshot (.db); replaces current data.</div></div><Button variant="default" size="sm" icon="refresh" onClick={() => fileRef.current?.click()}>Restore</Button></div>
+          <input ref={fileRef} type="file" accept=".db,application/octet-stream" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) restore(f); e.target.value = '' }} />
           <div className="setting-row"><div><div className="feed-title">Reset estate</div><div className="feed-sub">Reseed the demo dataset.</div></div><Button variant="danger" size="sm" onClick={reset}>Reset</Button></div>
         </Card>
       </div>
+
+      <WebhookCard />
       {passModal && (
         <FormModal
           title="Change operator passcode"
@@ -153,6 +176,40 @@ function MfaCard() {
           <Button variant="primary" size="sm" disabled={busy} onClick={begin} style={{ marginTop: 'var(--sp-3)' }}>{busy ? 'Preparing…' : 'Enable MFA'}</Button>
         </>
       )}
+    </Card>
+  )
+}
+
+function WebhookCard() {
+  const wh = useResource(() => api.getWebhook(), [])
+  const [url, setUrl] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { if (wh.data && !dirty) setUrl(wh.data.url) }, [wh.data, dirty])
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      await api.setWebhook(url.trim())
+      toast.success(url.trim() ? 'Webhook saved' : 'Webhook cleared')
+      setDirty(false)
+      wh.reload()
+    } catch (e) { toast.error(errMsg(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <Card className="ov-panel section-block">
+      <div className="card-head"><div className="card-title">Alert webhook</div>{wh.data?.url && <Badge tone="up">active</Badge>}</div>
+      <p className="u-muted" style={{ fontSize: 'var(--fs-sm)' }}>Cipherlane POSTs a JSON payload to this URL the moment a new alert fires — link down, sustained packet loss, or a certificate nearing expiry.</p>
+      <label className="field" style={{ marginTop: 'var(--sp-3)' }}>
+        <span className="field-label mono upper">Endpoint URL</span>
+        <input className="input mono" type="url" placeholder="https://hooks.example.com/cipherlane" value={url}
+          onChange={(e) => { setUrl(e.target.value); setDirty(true) }} />
+      </label>
+      <div className="row gap-2" style={{ marginTop: 'var(--sp-3)' }}>
+        <Button variant="primary" size="sm" disabled={busy || !dirty} onClick={save}>Save webhook</Button>
+        {url && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setUrl(''); setDirty(true) }}>Clear</Button>}
+      </div>
     </Card>
   )
 }
