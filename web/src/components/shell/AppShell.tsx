@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
+import { CommandPalette } from '../ui/CommandPalette'
 
 interface Override { crumb: string; title: string; subtitle?: string }
 const HeaderCtx = createContext<{ setOverride: (o: Override | null) => void }>({ setOverride: () => {} })
@@ -38,6 +39,7 @@ export function AppShell() {
         </main>
         {drawer && <div className="drawer-overlay" onClick={() => setDrawer(false)} />}
       </div>
+      <CommandPalette />
     </HeaderCtx.Provider>
   )
 }

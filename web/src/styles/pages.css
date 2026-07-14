@@ -103,7 +103,8 @@
 .topo-warn { stroke: var(--warn-500); }
 .topo-down { stroke: var(--danger-500); }
 .topo-idle { stroke: var(--text-subtle); animation: none; }
-.topo-node { cursor: pointer; transition: transform var(--dur-slow) var(--ease); }
+.topo-node { cursor: grab; transition: transform var(--dur-slow) var(--ease); touch-action: none; }
+.topo-node:active { cursor: grabbing; }
 .topo-node-box { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1.4; transition: stroke var(--dur-fast) var(--ease), fill var(--dur-fast) var(--ease); }
 .topo-node:hover .topo-node-box { stroke: var(--primary); }
 .topo-node.is-selected .topo-node-box { stroke: var(--primary); fill: var(--primary-soft); }
@@ -171,6 +172,8 @@
 
 /* Detail page toolbar + device enrolment layout */
 .detail-topbar { margin-bottom: var(--sp-5); }
+.role-legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); font-size: var(--fs-xs); color: var(--text-muted); margin-bottom: var(--sp-4); }
+.role-legend b { color: var(--text); font-weight: 600; }
 .enroll-grid { display: flex; gap: var(--sp-4); align-items: flex-start; }
 @media (max-width: 640px) { .enroll-grid { flex-direction: column; } }
 
