@@ -33,11 +33,12 @@ func newTestServer(t *testing.T) *Server {
 	secret, _ := auth.NewSecret()
 	pass, _ := auth.HashPasscode("cipherlane")
 	_ = store.SetSetting("agent_token", "test-token")
+	_ = store.SetSetting("passcode_hash", pass)
 	t.Cleanup(func() { _ = store.Close() })
 	hub := ws.NewHub(true)
 	return &Server{
 		Cfg: config.Config{Dev: true}, DB: store, Sim: sim.New(store.DB, hub),
-		Hub: hub, Secret: secret, Passcode: pass, Vault: vlt,
+		Hub: hub, Secret: secret, Vault: vlt,
 	}
 }
 
@@ -147,5 +148,53 @@ func TestAgentReportRejectsBadToken(t *testing.T) {
 	h.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rr.Code)
+	}
+}
+
+func TestChangePasscode(t *testing.T) {
+	s := newTestServer(t)
+	h := s.Handler()
+	cookies := loginCookies(t, h)
+	body, _ := json.Marshal(map[string]string{"current": "cipherlane", "next": "newsecret"})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/passcode", bytes.NewReader(body))
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("change passcode want 200, got %d: %s", rr.Code, rr.Body)
+	}
+
+	login := func(pc string) int {
+		b, _ := json.Marshal(map[string]string{"passcode": pc})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(b)))
+		return w.Code
+	}
+	if login("cipherlane") == http.StatusOK {
+		t.Fatal("old passcode still works after change")
+	}
+	if login("newsecret") != http.StatusOK {
+		t.Fatal("new passcode does not work after change")
+	}
+}
+
+func TestResetEstate(t *testing.T) {
+	s := newTestServer(t)
+	h := s.Handler()
+	cookies := loginCookies(t, h)
+	req := httptest.NewRequest(http.MethodPost, "/api/reset", nil)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("reset want 200, got %d: %s", rr.Code, rr.Body)
+	}
+	var n int
+	if err := s.DB.QueryRow("SELECT COUNT(*) FROM sites").Scan(&n); err != nil || n == 0 {
+		t.Fatalf("sites not reseeded after reset (n=%d, err=%v)", n, err)
 	}
 }

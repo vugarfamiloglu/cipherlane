@@ -71,7 +71,8 @@ type TunnelLive struct {
 	LatencyMs     float64 `json:"latencyMs"`
 	LossPct       float64 `json:"lossPct"`
 	HandshakeAgeS int     `json:"handshakeAgeS"`
-	RekeyInS      int     `json:"rekeyInS"`
+	RekeyInS      int       `json:"rekeyInS"`
+	History       []float64 `json:"history,omitempty"`
 }
 
 // User is a remote-access account.

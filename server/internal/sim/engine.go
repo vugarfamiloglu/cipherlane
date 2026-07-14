@@ -19,6 +19,7 @@ import (
 const (
 	tickInterval = 2 * time.Second
 	seriesCap    = 120
+	histCap      = 40 // per-tunnel throughput samples kept for sparklines
 )
 
 // GlobalPoint is one sample of aggregate throughput for the overview chart.
@@ -55,7 +56,8 @@ type tunnelState struct {
 	baseRx  float64
 	baseTx  float64
 	baseLat float64
-	real    bool // driven by a real gateway agent, not the simulator
+	hist    []float64 // rolling rx+tx totals for the sparkline
+	real    bool      // driven by a real gateway agent, not the simulator
 }
 
 type sessionState struct {
@@ -123,12 +125,13 @@ func (e *Engine) load() {
 }
 
 func (e *Engine) newTunnel(status string) *tunnelState {
+	var ts *tunnelState
 	switch status {
 	case "down":
-		return &tunnelState{live: models.TunnelLive{Status: "down"}}
+		ts = &tunnelState{live: models.TunnelLive{Status: "down"}}
 	case "rekeying":
 		lat := 28 + e.rng.Float64()*36
-		return &tunnelState{
+		ts = &tunnelState{
 			live: models.TunnelLive{
 				Status: "rekeying", RxMbps: 14, TxMbps: 9, LatencyMs: lat,
 				LossPct: 0.6, HandshakeAgeS: 2, RekeyInS: 4 + e.rng.Intn(16),
@@ -139,7 +142,7 @@ func (e *Engine) newTunnel(status string) *tunnelState {
 		br := 30 + e.rng.Float64()*150
 		bt := 18 + e.rng.Float64()*95
 		lat := 6 + e.rng.Float64()*22
-		return &tunnelState{
+		ts = &tunnelState{
 			live: models.TunnelLive{
 				Status: "up", RxMbps: br, TxMbps: bt, LatencyMs: lat,
 				LossPct: e.rng.Float64() * 0.2, HandshakeAgeS: 5 + e.rng.Intn(60),
@@ -148,10 +151,17 @@ func (e *Engine) newTunnel(status string) *tunnelState {
 			baseRx: br, baseTx: bt, baseLat: lat,
 		}
 	}
+	// Seed a plausible history so sparklines render immediately.
+	base := ts.live.RxMbps + ts.live.TxMbps
+	ts.hist = make([]float64, 0, histCap)
+	for i := 0; i < 20; i++ {
+		ts.hist = append(ts.hist, round1(base*(0.8+e.rng.Float64()*0.4)))
+	}
+	return ts
 }
 
 func (e *Engine) backfill() {
-	rx, tx := e.aggregate()
+	rx, tx := e.aggregateLocked()
 	now := time.Now().Unix()
 	pts := make([]GlobalPoint, 0, seriesCap)
 	for i := seriesCap - 1; i >= 0; i-- {
@@ -183,26 +193,39 @@ func (e *Engine) Run() {
 // Stop halts the engine loop.
 func (e *Engine) Stop() { close(e.stop) }
 
+// Reload rebuilds live state from the database, e.g. after an estate reset.
+func (e *Engine) Reload() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.tunnels = map[string]*tunnelState{}
+	e.sessions = map[string]*sessionState{}
+	e.load()
+	e.backfill()
+}
+
 func (e *Engine) tick() {
 	e.mu.Lock()
 	for _, t := range e.tunnels {
-		if t.live.Status == "down" || t.real {
-			continue // real tunnels are driven by agent reports
+		if t.live.Status != "down" && !t.real { // real tunnels are driven by agent reports
+			t.live.RxMbps = round1(e.walk(t.live.RxMbps, t.baseRx, t.baseRx*0.06+1, 0, t.baseRx*2))
+			t.live.TxMbps = round1(e.walk(t.live.TxMbps, t.baseTx, t.baseTx*0.06+1, 0, t.baseTx*2))
+			t.live.LatencyMs = round1(e.walk(t.live.LatencyMs, t.baseLat, 1.4, 2, 220))
+			lossBase := 0.05
+			if t.live.Status == "rekeying" {
+				lossBase = 0.7
+			}
+			t.live.LossPct = round2(e.walk(t.live.LossPct, lossBase, 0.05, 0, 3))
+			t.live.RekeyInS -= int(tickInterval.Seconds())
+			if t.live.RekeyInS <= 0 {
+				t.live.RekeyInS = 60 + e.rng.Intn(120)
+				t.live.HandshakeAgeS = 0
+			} else {
+				t.live.HandshakeAgeS += int(tickInterval.Seconds())
+			}
 		}
-		t.live.RxMbps = round1(e.walk(t.live.RxMbps, t.baseRx, t.baseRx*0.06+1, 0, t.baseRx*2))
-		t.live.TxMbps = round1(e.walk(t.live.TxMbps, t.baseTx, t.baseTx*0.06+1, 0, t.baseTx*2))
-		t.live.LatencyMs = round1(e.walk(t.live.LatencyMs, t.baseLat, 1.4, 2, 220))
-		lossBase := 0.05
-		if t.live.Status == "rekeying" {
-			lossBase = 0.7
-		}
-		t.live.LossPct = round2(e.walk(t.live.LossPct, lossBase, 0.05, 0, 3))
-		t.live.RekeyInS -= int(tickInterval.Seconds())
-		if t.live.RekeyInS <= 0 {
-			t.live.RekeyInS = 60 + e.rng.Intn(120)
-			t.live.HandshakeAgeS = 0
-		} else {
-			t.live.HandshakeAgeS += int(tickInterval.Seconds())
+		t.hist = append(t.hist, round1(t.live.RxMbps+t.live.TxMbps))
+		if len(t.hist) > histCap {
+			t.hist = t.hist[len(t.hist)-histCap:]
 		}
 	}
 	for _, s := range e.sessions {
@@ -239,12 +262,6 @@ func (e *Engine) walk(cur, base, sigma, min, max float64) float64 {
 	return next
 }
 
-func (e *Engine) aggregate() (rx, tx float64) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.aggregateLocked()
-}
-
 func (e *Engine) aggregateLocked() (rx, tx float64) {
 	for _, t := range e.tunnels {
 		rx += t.live.RxMbps
@@ -261,7 +278,9 @@ func (e *Engine) snapshotLocked() Snapshot {
 	tuns := make(map[string]models.TunnelLive, len(e.tunnels))
 	active := 0
 	for id, t := range e.tunnels {
-		tuns[id] = t.live
+		lv := t.live
+		lv.History = append([]float64(nil), t.hist...)
+		tuns[id] = lv
 		if t.live.Status != "down" {
 			active++
 		}
@@ -295,7 +314,9 @@ func (e *Engine) TunnelLive(id string) (models.TunnelLive, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if t, ok := e.tunnels[id]; ok {
-		return t.live, true
+		lv := t.live
+		lv.History = append([]float64(nil), t.hist...)
+		return lv, true
 	}
 	return models.TunnelLive{}, false
 }

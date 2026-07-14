@@ -18,7 +18,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if !auth.VerifyPasscode(s.Passcode, strings.TrimSpace(body.Passcode)) {
+	passHash, _ := s.DB.GetSetting("passcode_hash")
+	if !auth.VerifyPasscode(passHash, strings.TrimSpace(body.Passcode)) {
 		writeErr(w, http.StatusUnauthorized, "invalid passcode")
 		return
 	}

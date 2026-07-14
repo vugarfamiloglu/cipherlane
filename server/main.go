@@ -41,7 +41,7 @@ func main() {
 	}
 
 	secret := ensureSetting(store, "session_secret", func() (string, error) { return auth.NewSecret() })
-	passHash := ensureSetting(store, "passcode_hash", func() (string, error) {
+	_ = ensureSetting(store, "passcode_hash", func() (string, error) {
 		pc := os.Getenv("CIPHERLANE_PASSCODE")
 		if pc == "" {
 			pc = defaultPasscode
@@ -54,7 +54,7 @@ func main() {
 	engine := sim.New(store.DB, hub)
 	go engine.Run()
 
-	srv := &api.Server{Cfg: cfg, DB: store, Sim: engine, Hub: hub, Secret: secret, Passcode: passHash, Vault: vlt}
+	srv := &api.Server{Cfg: cfg, DB: store, Sim: engine, Hub: hub, Secret: secret, Vault: vlt}
 	httpSrv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Handler(),

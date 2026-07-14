@@ -25,9 +25,8 @@ type Server struct {
 	DB       *db.DB
 	Sim      *sim.Engine
 	Hub      *ws.Hub
-	Secret   string // session HMAC secret (base64)
-	Passcode string // bcrypt passcode hash
-	Vault    *vault.Vault
+	Secret string // session HMAC secret (base64)
+	Vault  *vault.Vault
 }
 
 // Handler builds the root http.Handler.
@@ -77,6 +76,10 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/auth/mfa/activate", s.mfaActivate)
 			r.Post("/auth/mfa/disable", s.mfaDisable)
 			r.Get("/agent/token", s.agentTokenInfo)
+
+			r.Post("/auth/passcode", s.changePasscode)
+			r.Get("/backup", s.backup)
+			r.Post("/reset", s.resetEstate)
 		})
 	})
 
