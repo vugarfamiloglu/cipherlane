@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -80,6 +81,9 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/auth/passcode", s.changePasscode)
 			r.Get("/backup", s.backup)
 			r.Post("/reset", s.resetEstate)
+			r.Post("/restore", s.restore)
+			r.Get("/webhook", s.getWebhook)
+			r.Put("/webhook", s.setWebhook)
 
 			// Site-to-site management
 			r.Put("/sites/{id}", s.updateSite)
@@ -117,12 +121,21 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/keys", s.generateKey)
 			r.Post("/keys/{id}/reveal", s.revealKey)
 			r.Delete("/keys/{id}", s.deleteKey)
+
+			r.Get("/operators", s.listOperators)
+			r.Post("/operators", s.createOperator)
+			r.Put("/operators/{id}", s.updateOperator)
+			r.Delete("/operators/{id}", s.deleteOperator)
 		})
 	})
 
 	r.Get("/ws", func(w http.ResponseWriter, req *http.Request) {
 		tok, err := auth.TokenFromRequest(req)
-		if err != nil || !auth.ValidToken(s.Secret, tok) {
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if _, ok := auth.ParseToken(s.Secret, tok); !ok {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -133,14 +146,33 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
+type ctxKey int
+
+const claimsKey ctxKey = 0
+
+// claims returns the authenticated operator claims from the request context.
+func claims(r *http.Request) auth.Claims {
+	c, _ := r.Context().Value(claimsKey).(auth.Claims)
+	return c
+}
+
 func (s *Server) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tok, err := auth.TokenFromRequest(r)
-		if err != nil || !auth.ValidToken(s.Secret, tok) {
+		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		next.ServeHTTP(w, r)
+		c, ok := auth.ParseToken(s.Secret, tok)
+		if !ok {
+			writeErr(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if c.Role == "auditor" && r.Method != http.MethodGet {
+			writeErr(w, http.StatusForbidden, "auditors have read-only access")
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), claimsKey, c)))
 	})
 }
 

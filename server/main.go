@@ -49,6 +49,7 @@ func main() {
 		return auth.HashPasscode(pc)
 	})
 	_ = ensureSetting(store, "agent_token", func() (string, error) { return auth.NewSecret() })
+	ensureOperators(store)
 
 	hub := ws.NewHub(cfg.Dev)
 	engine := sim.New(store.DB, hub)
@@ -91,4 +92,29 @@ func ensureSetting(store *db.DB, key string, gen func() (string, error)) string 
 		log.Fatalf("store %s: %v", key, err)
 	}
 	return v
+}
+
+// ensureOperators seeds a demo team (one per role) on first boot; all share the
+// default passcode until changed.
+func ensureOperators(store *db.DB) {
+	var n int
+	_ = store.QueryRow("SELECT COUNT(*) FROM operators").Scan(&n)
+	if n > 0 {
+		return
+	}
+	hash, err := auth.HashPasscode(defaultPasscode)
+	if err != nil {
+		log.Fatalf("operator seed: %v", err)
+	}
+	now := time.Now().Unix()
+	seed := []struct{ id, name, email, role string }{
+		{"op_owner", "Aygun Mammadova", "owner@cipherlane.az", "owner"},
+		{"op_admin", "Rashad Guliyev", "admin@cipherlane.az", "admin"},
+		{"op_operator", "Kamran Aliyev", "operator@cipherlane.az", "operator"},
+		{"op_auditor", "Nigar Sadigova", "auditor@cipherlane.az", "auditor"},
+	}
+	for _, o := range seed {
+		_, _ = store.Exec(`INSERT INTO operators(id,name,email,role,password_hash,status,created_at,updated_at)
+			VALUES(?,?,?,?,?,?,?,?)`, o.id, o.name, o.email, o.role, hash, "active", now, now)
+	}
 }

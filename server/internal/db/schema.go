@@ -165,4 +165,15 @@ CREATE TABLE IF NOT EXISTS alerts (
   status     TEXT NOT NULL DEFAULT 'open',
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS operators (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  email         TEXT NOT NULL UNIQUE,
+  role          TEXT NOT NULL DEFAULT 'operator',
+  password_hash TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'active',
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
 `

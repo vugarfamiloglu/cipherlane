@@ -328,3 +328,28 @@ func TestIssueCertificate(t *testing.T) {
 		t.Fatalf("issued cert invalid: %+v", c.Data)
 	}
 }
+
+func TestAuditorIsReadOnly(t *testing.T) {
+	s := newTestServer(t)
+	h := s.Handler()
+	hash, _ := auth.HashPasscode("cipherlane")
+	if _, err := s.DB.Exec(`INSERT INTO operators(id,name,email,role,password_hash,status,created_at,updated_at)
+		VALUES('op_aud','Auditor','aud@cipherlane.az','auditor',?,'active',0,0)`, hash); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"email": "aud@cipherlane.az", "password": "cipherlane"})
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewReader(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("auditor login: %d %s", rr.Code, rr.Body)
+	}
+	cookies := rr.Result().Cookies()
+
+	if got := authDo(h, cookies, http.MethodGet, "/api/tunnels", nil).Code; got != http.StatusOK {
+		t.Fatalf("auditor GET should be allowed, got %d", got)
+	}
+	got := authDo(h, cookies, http.MethodPost, "/api/tunnels", map[string]any{"name": "x", "aSiteId": "site_hq", "bSiteId": "site_gnj"}).Code
+	if got != http.StatusForbidden {
+		t.Fatalf("auditor mutation should be 403, got %d", got)
+	}
+}

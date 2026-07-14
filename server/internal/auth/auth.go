@@ -1,6 +1,5 @@
-// Package auth handles passcode verification and stateless HMAC session tokens
-// delivered as an http-only cookie. Secrets are supplied by the caller (loaded
-// from the settings table on boot), never hard-coded.
+// Package auth handles passcode/operator verification and stateless HMAC session
+// tokens (a signed JSON claim set) delivered as an http-only cookie.
 package auth
 
 import (
@@ -9,7 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -24,6 +23,14 @@ const CookieName = "cl_session"
 // SessionTTL is how long an issued session stays valid.
 const SessionTTL = 12 * time.Hour
 
+// Claims is the signed session payload.
+type Claims struct {
+	Exp  int64  `json:"exp"`
+	Oid  string `json:"oid"`  // operator id ("owner" for passcode sign-in)
+	Role string `json:"role"` // owner | admin | operator | auditor
+	Name string `json:"name"`
+}
+
 // HashPasscode returns a bcrypt hash suitable for storage.
 func HashPasscode(passcode string) (string, error) {
 	b, err := bcrypt.GenerateFromPassword([]byte(passcode), 10)
@@ -32,7 +39,7 @@ func HashPasscode(passcode string) (string, error) {
 
 // VerifyPasscode reports whether passcode matches the stored hash.
 func VerifyPasscode(hash, passcode string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(passcode)) == nil
+	return hash != "" && bcrypt.CompareHashAndPassword([]byte(hash), []byte(passcode)) == nil
 }
 
 // NewSecret returns 32 cryptographically-random bytes, base64-encoded.
@@ -44,44 +51,50 @@ func NewSecret() (string, error) {
 	return base64.StdEncoding.EncodeToString(b), nil
 }
 
-// IssueToken creates a signed token that expires after SessionTTL.
-func IssueToken(secret string) (string, error) {
+// IssueToken creates a signed token for the given claims (expiry is set here).
+func IssueToken(secret string, c Claims) (string, error) {
 	key, err := base64.StdEncoding.DecodeString(secret)
 	if err != nil {
 		return "", err
 	}
-	exp := time.Now().Add(SessionTTL).Unix()
-	payload := make([]byte, 8)
-	binary.BigEndian.PutUint64(payload, uint64(exp))
-	mac := sign(key, payload)
-	return base64.RawURLEncoding.EncodeToString(payload) + "." +
-		base64.RawURLEncoding.EncodeToString(mac), nil
+	c.Exp = time.Now().Add(SessionTTL).Unix()
+	payload, err := json.Marshal(c)
+	if err != nil {
+		return "", err
+	}
+	sig := sign(key, payload)
+	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// ValidToken reports whether the token is well-formed, unexpired, and signed.
-func ValidToken(secret, token string) bool {
+// ParseToken verifies the signature and expiry, returning the claims.
+func ParseToken(secret, token string) (Claims, bool) {
+	var c Claims
 	key, err := base64.StdEncoding.DecodeString(secret)
 	if err != nil {
-		return false
+		return c, false
 	}
 	parts := strings.SplitN(token, ".", 2)
 	if len(parts) != 2 {
-		return false
+		return c, false
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil || len(payload) != 8 {
-		return false
+	if err != nil {
+		return c, false
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return false
+		return c, false
 	}
-	want := sign(key, payload)
-	if subtle.ConstantTimeCompare(sig, want) != 1 {
-		return false
+	if subtle.ConstantTimeCompare(sig, sign(key, payload)) != 1 {
+		return c, false
 	}
-	exp := int64(binary.BigEndian.Uint64(payload))
-	return time.Now().Unix() < exp
+	if json.Unmarshal(payload, &c) != nil {
+		return c, false
+	}
+	if time.Now().Unix() >= c.Exp {
+		return c, false
+	}
+	return c, true
 }
 
 // SetCookie writes the session cookie on the response.

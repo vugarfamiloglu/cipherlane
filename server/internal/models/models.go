@@ -168,6 +168,18 @@ type Certificate struct {
 	CreatedAt   int64  `json:"createdAt"`
 }
 
+// Operator is a console user with a role (owner | admin | operator | auditor).
+type Operator struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Role         string `json:"role"`
+	PasswordHash string `json:"-"`
+	Status       string `json:"status"`
+	CreatedAt    int64  `json:"createdAt"`
+	UpdatedAt    int64  `json:"updatedAt"`
+}
+
 // AuditEvent records a control-plane mutation.
 type AuditEvent struct {
 	ID        string `json:"id"`

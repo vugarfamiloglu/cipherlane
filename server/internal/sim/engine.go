@@ -5,10 +5,15 @@
 package sim
 
 import (
+	"bytes"
+	crand "crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/rand"
+	"net/http"
 	"sync"
 	"time"
 
@@ -77,6 +82,7 @@ type Engine struct {
 	sessions map[string]*sessionState
 	series   []GlobalPoint
 	stop     chan struct{}
+	ticks    int
 }
 
 // New builds and primes the engine from current database rows.
@@ -248,6 +254,80 @@ func (e *Engine) tick() {
 
 	if b, err := json.Marshal(map[string]any{"type": "telemetry", "ts": now, "data": payload}); err == nil {
 		e.hub.Broadcast(b)
+	}
+	e.ticks++
+	if e.ticks%15 == 0 { // ~every 30s
+		go e.evaluateAlerts()
+	}
+}
+
+// evaluateAlerts raises alerts for down tunnels, high loss, and expiring certs.
+func (e *Engine) evaluateAlerts() {
+	type cond struct{ sev, title, detail, source string }
+	var conds []cond
+	e.mu.RLock()
+	for id, t := range e.tunnels {
+		if t.live.Status == "down" {
+			conds = append(conds, cond{"critical", "Tunnel down", "A configured tunnel is disabled or unreachable.", id})
+		} else if t.live.LossPct > 1.5 {
+			conds = append(conds, cond{"warning", "High packet loss", fmt.Sprintf("Packet loss %.1f%% exceeds the 1.5%% threshold.", t.live.LossPct), id})
+		}
+	}
+	e.mu.RUnlock()
+	for _, c := range conds {
+		e.raiseAlert(c.sev, c.title, c.detail, c.source)
+	}
+
+	// Collect expiring certs first, then raise — raiseAlert issues its own
+	// queries, and with a single-connection pool it would deadlock against an
+	// open rows cursor here.
+	type expiring struct{ id, name string }
+	var certs []expiring
+	if rows, err := e.db.Query(`SELECT id, name, not_after FROM certificates WHERE status='valid' AND kind!='ca' AND not_after>0`); err == nil {
+		cutoff := time.Now().Add(30 * 24 * time.Hour).Unix()
+		for rows.Next() {
+			var id, name string
+			var na int64
+			if rows.Scan(&id, &name, &na) == nil && na < cutoff {
+				certs = append(certs, expiring{id, name})
+			}
+		}
+		rows.Close()
+	}
+	for _, c := range certs {
+		e.raiseAlert("warning", "Certificate expiring", c.name+" expires within 30 days.", c.id)
+	}
+}
+
+// raiseAlert inserts an alert unless an identical open one already exists, then
+// fires the configured webhook.
+func (e *Engine) raiseAlert(severity, title, detail, source string) {
+	var n int
+	_ = e.db.QueryRow(`SELECT COUNT(*) FROM alerts WHERE source=? AND title=? AND status='open'`, source, title).Scan(&n)
+	if n > 0 {
+		return
+	}
+	b := make([]byte, 6)
+	_, _ = crand.Read(b)
+	_, _ = e.db.Exec(`INSERT INTO alerts(id,severity,title,detail,source,status,created_at) VALUES(?,?,?,?,?,?,?)`,
+		"alr_"+hex.EncodeToString(b), severity, title, detail, source, "open", time.Now().Unix())
+
+	var url string
+	if e.db.QueryRow(`SELECT value FROM settings WHERE key='webhook_url'`).Scan(&url) == nil && url != "" {
+		go postWebhook(url, severity, title, detail, source)
+	}
+}
+
+func postWebhook(url, severity, title, detail, source string) {
+	body, _ := json.Marshal(map[string]string{"severity": severity, "title": title, "detail": detail, "source": source})
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 5 * time.Second}
+	if resp, err := client.Do(req); err == nil {
+		_ = resp.Body.Close()
 	}
 }
 
