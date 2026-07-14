@@ -61,4 +61,8 @@ export const api = {
   mfaActivate: (code: string) => req<{ enabled: boolean }>('/auth/mfa/activate', { method: 'POST', body: JSON.stringify({ code }) }),
   mfaDisable: (code: string) => req<{ enabled: boolean }>('/auth/mfa/disable', { method: 'POST', body: JSON.stringify({ code }) }),
   agentToken: () => req<{ token: string }>('/agent/token'),
+
+  changePasscode: (current: string, next: string) =>
+    req<{ changed: boolean }>('/auth/passcode', { method: 'POST', body: JSON.stringify({ current, next }) }),
+  resetEstate: () => req<{ reset: boolean }>('/reset', { method: 'POST' }),
 }

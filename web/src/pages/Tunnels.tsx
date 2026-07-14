@@ -7,6 +7,7 @@ import { PageHead, Loading, ErrorNote } from '../components/ui/Page'
 import { DataTable, type Column } from '../components/ui/DataTable'
 import { StatusBadge, Badge, Button } from '../components/ui/primitives'
 import { FormModal } from '../components/ui/FormModal'
+import { Sparkline } from '../components/ui/Sparkline'
 import { fmtRate } from '../lib/format'
 import { toast } from '../components/ui/Toaster'
 import type { Tunnel } from '../lib/types'
@@ -30,6 +31,7 @@ export function Tunnels() {
     { key: 'protocol', header: 'Protocol', width: 116, render: (t) => <Badge>{t.protocol}</Badge> },
     { key: 'cipher', header: 'Cipher', width: 176, mono: true, render: (t) => t.cipher },
     { key: 'rate', header: 'Throughput', width: 128, align: 'right', render: (t) => { const l = live(t); return <span className="mono tnum">{l ? fmtRate(l.rxMbps + l.txMbps) : '–'}</span> } },
+    { key: 'trend', header: 'Trend', width: 108, render: (t) => { const l = live(t); return <Sparkline data={l?.history ?? []} width={88} height={22} stroke={(l?.status ?? t.status) === 'rekeying' ? 'var(--warn-500)' : 'var(--primary)'} /> } },
     { key: 'lat', header: 'Latency', width: 104, align: 'right', render: (t) => { const l = live(t); return <span className="mono tnum">{l ? `${l.latencyMs.toFixed(0)} ms` : '–'}</span> } },
     { key: 'routing', header: 'Routing', width: 100, mono: true, render: (t) => t.routing },
     { key: 'alwaysOn', header: 'Always-on', width: 108, align: 'center', render: (t) => <span className={`dot dot-${t.alwaysOn ? 'up' : 'idle'}`} /> },

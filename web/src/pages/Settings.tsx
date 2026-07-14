@@ -6,21 +6,41 @@ import { useTheme } from '../hooks/useTheme'
 import { PageHead } from '../components/ui/Page'
 import { Card, Button, Badge, KeyVal } from '../components/ui/primitives'
 import { promptModal, confirmModal } from '../components/ui/Modal'
+import { FormModal } from '../components/ui/FormModal'
 import { toast } from '../components/ui/Toaster'
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong')
 
 export function Settings() {
   const { theme, set } = useTheme()
+  const [passModal, setPassModal] = useState(false)
 
-  const changePass = async () => {
-    const p = await promptModal({ title: 'Change operator passcode', label: 'New passcode', secret: true, placeholder: '••••••••••', confirmText: 'Update' })
-    if (p) toast.success('Passcode updated (demo)')
+  const backup = async () => {
+    try {
+      const res = await fetch('/api/backup', { credentials: 'include' })
+      if (!res.ok) throw new Error('Backup failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `cipherlane-backup-${Date.now()}.db`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Backup downloaded')
+    } catch (e) {
+      toast.error(errMsg(e))
+    }
   }
-  const backup = () => toast.success('Encrypted backup archive generated')
   const reset = async () => {
-    const ok = await confirmModal({ title: 'Reset demo estate?', message: 'In a live deployment this reseeds the database. Disabled here.', confirmText: 'Reset', tone: 'danger' })
-    if (ok) toast.info('Reset is disabled in this demo')
+    const ok = await confirmModal({ title: 'Reset estate?', message: 'This wipes all sites, tunnels, users, and sessions, then reseeds the demo dataset.', confirmText: 'Reset', tone: 'danger' })
+    if (!ok) return
+    try {
+      await api.resetEstate()
+      toast.success('Estate reset — reloading…')
+      setTimeout(() => location.reload(), 700)
+    } catch (e) {
+      toast.error(errMsg(e))
+    }
   }
 
   return (
@@ -37,7 +57,7 @@ export function Settings() {
               <Button variant={theme === 'dark' ? 'primary' : 'default'} size="sm" icon="moon" onClick={() => set('dark')}>Dark</Button>
             </div>
           </div>
-          <div className="setting-row"><div><div className="feed-title">Operator passcode</div><div className="feed-sub">Rotate the console sign-in passcode.</div></div><Button variant="default" size="sm" onClick={changePass}>Change</Button></div>
+          <div className="setting-row"><div><div className="feed-title">Operator passcode</div><div className="feed-sub">Rotate the console sign-in passcode.</div></div><Button variant="default" size="sm" onClick={() => setPassModal(true)}>Change</Button></div>
           <div className="setting-row"><div><div className="feed-title">Secret vault</div><div className="feed-sub">Keys sealed with AES-256-GCM.</div></div><Badge tone="up">sealed</Badge></div>
         </Card>
 
@@ -58,6 +78,21 @@ export function Settings() {
           <div className="setting-row"><div><div className="feed-title">Reset estate</div><div className="feed-sub">Reseed the demo dataset.</div></div><Button variant="danger" size="sm" onClick={reset}>Reset</Button></div>
         </Card>
       </div>
+      {passModal && (
+        <FormModal
+          title="Change operator passcode"
+          submitLabel="Update passcode"
+          onClose={() => setPassModal(false)}
+          onSubmit={async (v) => {
+            await api.changePasscode(v.current, v.next)
+            toast.success('Passcode updated')
+          }}
+          fields={[
+            { name: 'current', label: 'Current passcode', type: 'password', required: true },
+            { name: 'next', label: 'New passcode', type: 'password', placeholder: 'at least 6 characters', required: true },
+          ]}
+        />
+      )}
     </>
   )
 }

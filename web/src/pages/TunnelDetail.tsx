@@ -6,6 +6,7 @@ import { usePageHeader } from '../components/shell/AppShell'
 import { Loading, ErrorNote, StatTile } from '../components/ui/Page'
 import { Card, Button, StatusBadge, Badge, KeyVal } from '../components/ui/primitives'
 import { Icon } from '../components/ui/Icon'
+import { Sparkline } from '../components/ui/Sparkline'
 import { fmtRate } from '../lib/format'
 import { toast } from '../components/ui/Toaster'
 import type { Tunnel } from '../lib/types'
@@ -52,6 +53,9 @@ export function TunnelDetail() {
 
         <Card className="ov-panel">
           <div className="card-head"><div className="card-title">Live session</div></div>
+          <div className="tunnel-spark">
+            <Sparkline data={l?.history ?? []} width={280} height={44} stroke={(l?.status ?? data.status) === 'rekeying' ? 'var(--warn-500)' : 'var(--primary)'} />
+          </div>
           <dl className="kv-list">
             <KeyVal k="Rx" v={l ? fmtRate(l.rxMbps) : '–'} mono />
             <KeyVal k="Tx" v={l ? fmtRate(l.txMbps) : '–'} mono />

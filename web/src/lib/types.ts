@@ -18,6 +18,7 @@ export interface Gateway {
 export interface TunnelLive {
   status: Status; rxMbps: number; txMbps: number
   latencyMs: number; lossPct: number; handshakeAgeS: number; rekeyInS: number
+  history?: number[]
 }
 
 export interface Route { id: string; tunnelId: string; cidr: string; kind: string }

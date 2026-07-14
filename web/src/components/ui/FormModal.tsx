@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
 import { Button } from './primitives'
+import { PasswordInput } from './PasswordInput'
 import { toast } from './Toaster'
 
 export interface Field {
   name: string
   label: string
-  type?: 'text' | 'select'
+  type?: 'text' | 'select' | 'password'
   options?: { value: string; label: string }[]
   placeholder?: string
   required?: boolean
@@ -54,6 +55,9 @@ export function FormModal({
               <select className="input select" value={values[f.name]} onChange={(e) => set(f.name, e.target.value)}>
                 {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
+            ) : f.type === 'password' ? (
+              <PasswordInput value={values[f.name]} placeholder={f.placeholder}
+                onChange={(e) => set(f.name, e.target.value)} />
             ) : (
               <input className="input" value={values[f.name]} placeholder={f.placeholder}
                 onChange={(e) => set(f.name, e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit() }} />
